@@ -1,46 +1,134 @@
-![Banner image](https://user-images.githubusercontent.com/10284570/173569848-c624317f-42b1-45a6-ab09-f0ea3c247648.png)
+# n8n-nodes-couchbase
 
-# n8n-nodes-starter
+This is an n8n community node. It lets you use Couchbase in your n8n workflows.
 
-This repo contains example nodes to help you get started building your own custom integrations for [n8n](n8n.io). It includes the node linter and other dependencies.
+Couchbase is a distributed NoSQL cloud database that offers the robustness of a relational database with the flexibility of a JSON document database, featuring key-value operations, SQL++ querying, and powerful search capabilities.
 
-To make your custom node available to the community, you must create it as an npm package, and [submit it to the npm registry](https://docs.npmjs.com/packages-and-modules/contributing-packages-to-the-registry).
+[n8n](https://n8n.io/) is a [fair-code licensed](https://docs.n8n.io/reference/license/) workflow automation platform.
 
-## Prerequisites
+[Installation](#installation)  
+[Operations](#operations)  
+[Credentials](#credentials)  
+[Compatibility](#compatibility)  
+[Usage](#usage)  
+[Resources](#resources)
 
-You need the following installed on your development machine:
+## Installation
 
-* [git](https://git-scm.com/downloads)
-* Node.js and pnpm. Minimum version Node 18. You can find instructions on how to install both using nvm (Node Version Manager) for Linux, Mac, and WSL [here](https://github.com/nvm-sh/nvm). For Windows users, refer to Microsoft's guide to [Install NodeJS on Windows](https://docs.microsoft.com/en-us/windows/dev-environment/javascript/nodejs-on-windows).
-* Install n8n with:
-  ```
-  pnpm install n8n -g
-  ```
-* Recommended: follow n8n's guide to [set up your development environment](https://docs.n8n.io/integrations/creating-nodes/build/node-development-environment/).
+Follow the [installation guide](https://docs.n8n.io/integrations/community-nodes/installation/) in the n8n community nodes documentation.
 
-## Using this starter
+## Operations
 
-These are the basic steps for working with the starter. For detailed guidance on creating and publishing nodes, refer to the [documentation](https://docs.n8n.io/integrations/creating-nodes/).
+The Couchbase node supports operations across two main resources:
 
-1. [Generate a new repository](https://github.com/n8n-io/n8n-nodes-starter/generate) from this template repository.
-2. Clone your new repo:
-   ```
-   git clone https://github.com/<your organization>/<your-repo-name>.git
-   ```
-3. Run `pnpm i` to install dependencies.
-4. Open the project in your editor.
-5. Browse the examples in `/nodes` and `/credentials`. Modify the examples, or replace them with your own nodes.
-6. Update the `package.json` to match your details.
-7. Run `pnpm lint` to check for errors or `pnpm lintfix` to automatically fix errors when possible.
-8. Test your node locally. Refer to [Run your node locally](https://docs.n8n.io/integrations/creating-nodes/test/run-node-locally/) for guidance.
-9. Replace this README with documentation for your node. Use the [README_TEMPLATE](README_TEMPLATE.md) to get started.
-10. Update the LICENSE file to use your details.
-11. [Publish](https://docs.npmjs.com/packages-and-modules/contributing-packages-to-the-registry) your package to npm.
+### Document & Key-Value Operations
+- **Create**: Insert a document with a specified or auto-generated ID
+- **Query**: Execute SQL++ queries to retrieve or manipulate documents
+- **Read**: Retrieve a document by its ID
+- **Upsert**: Modify an existing document identified by its ID, or create a new one if it does not exist
+- **Delete**: Remove a document by its ID
 
-## More information
+### Search Operations
+- **Create Index**: Create a new search index
+- **Search & Retrieve**: Perform full-text search with multiple options:
+	- Basic search with query, fields, and limit
+	- Advanced mode with raw JSON query capabilities
 
-Refer to our [documentation on creating nodes](https://docs.n8n.io/integrations/creating-nodes/) for detailed information on building your own nodes.
+## Credentials
 
-## License
+To use the Couchbase node, you'll need to set up Couchbase credentials in n8n:
 
-[MIT](https://github.com/n8n-io/n8n-nodes-starter/blob/master/LICENSE.md)
+1. **Prerequisites**:
+	- A running Couchbase cluster (using [Couchbase Capella](https://cloud.couchbase.com/) in the cloud, or Couchbase Server)
+	- [Database credentials](https://docs.couchbase.com/cloud/clusters/manage-database-users.html#create-database-credentials) with appropriate permissions for the operations you want to perform
+   - [Allow IP address](https://docs.couchbase.com/cloud/clusters/allow-ip-address.html) for your n8n instance
+
+2. **Credential Parameters**:
+	- **Connection String**: The connection string to your Couchbase server (e.g., `couchbase://localhost`)
+	- **Username**: Database access username
+	- **Password**: Database access password
+
+## Compatibility
+
+This node has been tested with n8n version 1.86.0.
+
+## Usage
+
+### Document Operations
+
+#### Creating Documents
+1. Select the **Document & Key-Value** resource
+2. Choose the **Create** operation
+3. Select your target bucket, scope, and collection
+4. You can either:
+	- Use a generated UUID for your document
+	- Specify your own document ID
+5. Enter your document content in JSON format
+
+#### Reading Documents
+1. Select the **Document & Key-Value** resource
+2. Choose the **Read** operation
+3. Select your target bucket, scope, and collection
+4. Enter the document ID to retrieve
+5. The node will return the document content if found
+
+#### Upserting Documents
+1. Select the **Document & Key-Value** resource
+2. Choose the **Upsert** operation
+3. Select your target bucket, scope, and collection
+4. Enter the document ID
+5. Provide the new JSON document content
+6. The document will be created if it doesn't exist, or updated if it does
+
+#### Deleting Documents
+1. Select the **Document & Key-Value** resource
+2. Choose the **Delete** operation
+3. Select your target bucket, scope, and collection
+4. Enter the document ID to delete
+5. The node will remove the document from the collection
+
+#### Querying Documents with SQL++
+1. Select the **Document & Key-Value** resource
+2. Choose the **Query** operation
+3. Optionally select a bucket and scope context
+4. Enter your SQL++ query
+	 ```sql
+	 SELECT * FROM `travel-sample`.inventory.hotel WHERE country = "United States"
+	 ```
+
+### Search Operations
+
+#### Full-Text Search
+1. Select the **Search** resource
+2. Choose the **Search & Retrieve** operation
+3. Enter the index name (format: `bucket.scope.index-name`)
+4. Enter your search query
+5. Configure optional parameters:
+	- Fields to return (comma-separated)
+	- Results limit
+	- Include term locations option
+
+#### Advanced Search
+1. Enable **Advanced Mode**
+2. Enter a raw JSON query for more complex search requirements:
+	 ```json
+	 {
+		 "query": {
+			 "match": "California"
+		 },
+		 "size": 5,
+		 "from": 0
+	 }
+	 ```
+
+#### Creating Search Indexes
+1. Select the **Search** resource
+2. Choose the **Create Index** operation
+3. Enter the index definition as a JSON object
+
+## Resources
+
+* [n8n community nodes documentation](https://docs.n8n.io/integrations/community-nodes/)
+* [Couchbase Documentation](https://docs.couchbase.com/)
+* [Couchbase Node.js SDK](https://docs.couchbase.com/nodejs-sdk/current/hello-world/start-using-sdk.html)
+* [Couchbase Search Service](https://docs.couchbase.com/server/current/search/search-intro.html)

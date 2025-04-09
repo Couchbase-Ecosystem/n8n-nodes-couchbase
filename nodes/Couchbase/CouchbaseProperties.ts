@@ -516,7 +516,7 @@ export const nodeProperties: INodeProperties[] = [
 			resource: RESOURCE.SEARCH,
 			operation: [SEARCH_OPS.RETRIEVE],
 		}),
-		default: 'travel-sample.inventory.test-ts-fts',
+		default: '',
 		placeholder: 'bucket.scope.indexName',
 		description: 'Name of the search index to query',
 	},

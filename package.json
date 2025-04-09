@@ -1,7 +1,7 @@
 {
   "name": "n8n-nodes-couchbase",
   "version": "1.0.0",
-  "description": "Community node for using Couchbase with n8n.",
+  "description": "Community node for using Couchbase Key-Value, Query, and Full-Text Search with n8n.",
   "keywords": [
     "n8n-community-node-package"
   ],

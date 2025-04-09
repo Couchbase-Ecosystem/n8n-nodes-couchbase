@@ -26,6 +26,7 @@ import {
 	QueryResult,
 	SearchQuery,
 	SearchQueryOptions,
+	UnambiguousTimeoutError,
 } from 'couchbase';
 
 import * as uuid from 'uuid';
@@ -77,6 +78,12 @@ async function connectToCouchbase(context: any) {
 			collection = bucket.scope(selectedScope.value).collection(selectedCollection.value);
 		}
 	} catch (error) {
+		if (error instanceof UnambiguousTimeoutError) {
+			throw new NodeOperationError(
+				context.getNode(),
+				`Could not connect to database: ${error.message}. Be sure the database exists, is turned on, and the connection string is correct.`,
+			);
+		}
 		throw new NodeOperationError(
 			context.getNode(),
 			`Could not connect to database: ${error.message}`,

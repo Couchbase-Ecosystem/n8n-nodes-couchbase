@@ -1,19 +1,19 @@
 {
-  "name": "n8n-nodes-<...>",
-  "version": "0.1.0",
-  "description": "",
+  "name": "n8n-nodes-couchbase",
+  "version": "1.0.0",
+  "description": "Community node for using Couchbase Key-Value, Query, and Full-Text Search with n8n.",
   "keywords": [
     "n8n-community-node-package"
   ],
   "license": "MIT",
-  "homepage": "",
+  "homepage": "https://github.com/Couchbase-Ecosystem/n8n-nodes-couchbase#readme",
   "author": {
-    "name": "",
-    "email": ""
+    "name": "Elliot Scribner",
+    "email": "elliot.scribner@couchbase.com"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/<...>/n8n-nodes-<...>.git"
+    "url": "https://github.com/Couchbase-Ecosystem/n8n-nodes-couchbase.git"
   },
   "engines": {
     "node": ">=18.10",
@@ -25,6 +25,7 @@
     "preinstall": "npx only-allow pnpm",
     "build": "tsc && gulp build:icons",
     "dev": "tsc --watch",
+    "dev:ui": "nodemon -w nodes -w credentials --ext ts --exec 'tsc && cd $HOME/.n8n/custom && COREPACK_ENABLE_STRICT=0 pnpm install && cd - && n8n'",
     "format": "prettier nodes credentials --write",
     "lint": "eslint nodes credentials package.json",
     "lintfix": "eslint nodes credentials package.json --fix",
@@ -36,23 +37,28 @@
   "n8n": {
     "n8nNodesApiVersion": 1,
     "credentials": [
-      "dist/credentials/ExampleCredentialsApi.credentials.js",
-      "dist/credentials/HttpBinApi.credentials.js"
+      "dist/credentials/CouchbaseApi.credentials.js"
     ],
     "nodes": [
-      "dist/nodes/ExampleNode/ExampleNode.node.js",
-      "dist/nodes/HttpBin/HttpBin.node.js"
+      "dist/nodes/Couchbase/Couchbase.node.js"
     ]
   },
   "devDependencies": {
+    "@types/node": "^22.13.5",
     "@typescript-eslint/parser": "^7.15.0",
     "eslint": "^8.56.0",
     "eslint-plugin-n8n-nodes-base": "^1.16.1",
     "gulp": "^4.0.2",
+    "nodemon": "^3.1.9",
     "prettier": "^3.3.2",
-    "typescript": "^5.5.3"
+    "typescript": "^5.5.3",
+    "sqlite3": "^5.1.7"
   },
   "peerDependencies": {
     "n8n-workflow": "*"
+  },
+  "dependencies": {
+    "couchbase": "^4.4.5",
+    "uuid": "^11.1.0"
   }
 }

@@ -2,6 +2,7 @@ import type {
 	IDisplayOptions,
 	INodeProperties,
 	INodePropertyMode,
+	INodePropertyTypeOptions,
 	NodePropertyTypes,
 } from 'n8n-workflow';
 
@@ -75,6 +76,7 @@ const createFieldWithVaryingRequirements = (
 		conditions: DisplayCondition;
 		required: boolean;
 		options?: FieldOptions;
+		typeOptions?: INodePropertyTypeOptions;
 		modes?: ResourceLocatorMode[];
 	}[],
 ): INodeProperties[] => {
@@ -88,6 +90,7 @@ const createFieldWithVaryingRequirements = (
 			displayOptions: showFor(group.conditions),
 			description: group.options?.description || '',
 			placeholder: group.options?.placeholder || '',
+			typeOptions: group.typeOptions || {},
 			// Default is required in INodeProperties
 			default: group.options?.default !== undefined ? group.options.default : '',
 		};
@@ -327,6 +330,7 @@ export const nodeProperties: INodeProperties[] = [
 			},
 		],
 	),
+
 	...createFieldWithVaryingRequirements(
 		'Couchbase Scope',
 		'couchbaseScope',
@@ -345,6 +349,9 @@ export const nodeProperties: INodeProperties[] = [
 				required: true,
 				options: {
 					description: 'The Couchbase scope to use',
+				},
+				typeOptions: {
+					loadOptionsDependsOn: ['couchbaseBucket.value'],
 				},
 				modes: [
 					{
@@ -372,6 +379,9 @@ export const nodeProperties: INodeProperties[] = [
 				options: {
 					description: 'The Couchbase scope to use (optional for this operation)',
 				},
+				typeOptions: {
+					loadOptionsDependsOn: ['couchbaseBucket.value'],
+				},
 				modes: [
 					{
 						displayName: 'From List',
@@ -391,6 +401,7 @@ export const nodeProperties: INodeProperties[] = [
 			},
 		],
 	),
+
 	{
 		displayName: 'Couchbase Collection',
 		name: 'couchbaseCollection',
@@ -401,6 +412,9 @@ export const nodeProperties: INodeProperties[] = [
 			resource: RESOURCE.DOCUMENT,
 			operation: [DOCUMENT_OPS.CREATE, DOCUMENT_OPS.READ, DOCUMENT_OPS.UPSERT, DOCUMENT_OPS.DELETE],
 		}),
+		typeOptions: {
+			loadOptionsDependsOn: ['couchbaseBucket.value', 'couchbaseScope.value'],
+		},
 		modes: [
 			{
 				displayName: 'From List',

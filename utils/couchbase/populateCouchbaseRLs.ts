@@ -61,7 +61,6 @@ export async function populateCouchbaseScopeRL(this: ILoadOptionsFunctions) {
 }
 
 export async function populateCouchbaseCollectionRL(this: ILoadOptionsFunctions) {
-	const { cluster } = await connectToCouchbase(this);
 	// Get selected bucket and scope from parameters
 	const selectedBucket = this.getNodeParameter('couchbaseBucket') as INodeParameterResourceLocator;
 	const selectedScope = this.getNodeParameter('couchbaseScope') as INodeParameterResourceLocator;
@@ -71,6 +70,7 @@ export async function populateCouchbaseCollectionRL(this: ILoadOptionsFunctions)
 		throw new NodeOperationError(this.getNode(), 'Please select a bucket and scope.');
 	}
 
+	const { cluster } = await connectToCouchbase(this);
 	try {
 		// Get bucket instance using the selected bucket name/value
 		const bucketName = selectedBucket.value as string;

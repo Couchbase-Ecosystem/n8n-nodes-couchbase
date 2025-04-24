@@ -279,8 +279,6 @@ export class VectorStoreCouchbaseSearch extends createVectorStoreNode<CouchbaseV
 			{
 				name: 'couchbaseApi',
 				required: true,
-				// testedBy is not working for custom nodes per https://community.n8n.io/t/bug-cant-use-credentialtest-method-in-custom-node/94069.
-				// testedBy: 'couchbaseCredentialTest',
 			},
 		],
 		operationModes: ['load', 'insert', 'retrieve', 'update', 'retrieve-as-tool'],

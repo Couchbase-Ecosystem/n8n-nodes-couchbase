@@ -1,32 +1,20 @@
 import {
-	ICredentialsDecrypted,
-	ICredentialTestFunctions,
 	IDataObject,
 	IExecuteFunctions,
-	ILoadOptionsFunctions,
-	INodeCredentialTestResult,
 	INodeExecutionData,
 	INodeParameterResourceLocator,
 	INodeType,
 	INodeTypeDescription,
 	IPairedItemData,
-	NodeOperationError,
 } from 'n8n-workflow';
 
 import {
-	Bucket,
-	BucketNotFoundError,
-	Cluster,
-	Collection,
-	connect,
 	GetResult,
 	ISearchIndex,
 	MutationResult,
-	PingResult,
 	QueryResult,
 	SearchQuery,
 	SearchQueryOptions,
-	UnambiguousTimeoutError,
 } from 'couchbase';
 
 import * as uuid from 'uuid';
@@ -36,62 +24,13 @@ import {
 	nodeProperties as couchbaseProperties,
 	SEARCH_OPS,
 } from './CouchbaseProperties';
-import { populateCouchbaseSearchIndexesRL } from '@utils/couchbase/populateCouchbaseRLs';
-
-async function connectToCouchbase(context: any) {
-	const credentials = await context.getCredentials('couchbaseApi');
-
-	const connectionString = credentials.couchbaseConnectionString as string;
-	const username = credentials.couchbaseUsername as string;
-	const password = credentials.couchbasePassword as string;
-
-	const selectedBucket = context.getNodeParameter(
-		'couchbaseBucket',
-		0,
-		'',
-	) as INodeParameterResourceLocator;
-	const selectedScope = context.getNodeParameter(
-		'couchbaseScope',
-		0,
-		'',
-	) as INodeParameterResourceLocator;
-	const selectedCollection = context.getNodeParameter(
-		'couchbaseCollection',
-		0,
-		'',
-	) as INodeParameterResourceLocator;
-
-	let cluster: Cluster;
-	let collection: Collection = {} as Collection;
-	try {
-		// Connecting to the database
-		cluster = await connect(connectionString, {
-			username: username,
-			password: password,
-			configProfile: 'wanDevelopment',
-		});
-		if (
-			typeof selectedBucket.value === 'string' &&
-			typeof selectedScope.value === 'string' &&
-			typeof selectedCollection.value === 'string'
-		) {
-			const bucket: Bucket = cluster.bucket(selectedBucket.value);
-			collection = bucket.scope(selectedScope.value).collection(selectedCollection.value);
-		}
-	} catch (error) {
-		if (error instanceof UnambiguousTimeoutError) {
-			throw new NodeOperationError(
-				context.getNode(),
-				`Could not connect to database: ${error.message}. Be sure the database exists, is turned on, and the connection string is correct.`,
-			);
-		}
-		throw new NodeOperationError(
-			context.getNode(),
-			`Could not connect to database: ${error.message}`,
-		);
-	}
-	return { cluster, collection };
-}
+import {
+	populateCouchbaseBucketRL,
+	populateCouchbaseCollectionRL,
+	populateCouchbaseScopeRL,
+	populateCouchbaseSearchIndexesRL,
+} from '@utils/couchbase/populateCouchbaseRLs';
+import { connectToCouchbase } from '@utils/couchbase/connectToCouchbase';
 
 function processSearchResults(rows: any[]): IDataObject[] {
 	const processedData = rows.map((row) =>
@@ -124,144 +63,11 @@ function transformRawJsonQueryToValidSearchOptions(rawJsonQuery: any): SearchQue
 	} as SearchQueryOptions;
 }
 
-async function couchbaseBucketSearch(this: ILoadOptionsFunctions) {
-	const { cluster } = await connectToCouchbase(this);
-
-	try {
-		const buckets = await cluster.buckets().getAllBuckets();
-		const allBuckets = [];
-
-		for (const bucket of buckets) {
-			allBuckets.push({
-				name: `${bucket.name}`,
-				value: `${bucket.name}`,
-			});
-		}
-
-		return { results: allBuckets };
-	} catch (error) {
-		throw new NodeOperationError(this.getNode(), `Error: ${error.message}`);
-	} finally {
-		await cluster.close();
-	}
-}
-
-async function couchbaseScopeSearch(this: ILoadOptionsFunctions) {
-	const selectedBucket = this.getNodeParameter('couchbaseBucket') as INodeParameterResourceLocator;
-
-	if (!selectedBucket || !selectedBucket.value) {
-		throw new NodeOperationError(this.getNode(), `Please select a bucket.`);
-	}
-
-	const { cluster } = await connectToCouchbase(this);
-	try {
-		const bucket = cluster.bucket(selectedBucket.value as string);
-		const bucketManager = bucket.collections();
-
-		// Get all scopes
-		const scopes = await bucketManager.getAllScopes();
-
-		// Create a flat list of all collections across all scopes
-		const allScopes = [];
-
-		for (const scope of scopes) {
-			allScopes.push({
-				name: `${scope.name}`,
-				value: `${scope.name}`,
-			});
-		}
-
-		return { results: allScopes };
-	} catch (error) {
-		if (error instanceof BucketNotFoundError) {
-			throw new NodeOperationError(this.getNode(), `Please select a bucket.`);
-		}
-		throw new NodeOperationError(this.getNode(), `Error: ${error.message}`);
-	} finally {
-		await cluster.close();
-	}
-}
-
-async function couchbaseCollectionSearch(this: ILoadOptionsFunctions) {
-	const { cluster } = await connectToCouchbase(this);
-	// Get selected bucket and scope from parameters
-	const selectedBucket = this.getNodeParameter('couchbaseBucket') as INodeParameterResourceLocator;
-	const selectedScope = this.getNodeParameter('couchbaseScope') as INodeParameterResourceLocator;
-
-	// Check if scope is selected
-	if (!selectedBucket || !selectedBucket.value || !selectedScope || !selectedScope.value) {
-		throw new NodeOperationError(this.getNode(), 'Please select a bucket and scope.');
-	}
-
-	try {
-		// Get bucket instance using the selected bucket name/value
-		const bucketName = selectedBucket.value as string;
-		const bucket = cluster.bucket(bucketName);
-		const bucketManager = bucket.collections();
-
-		// Get all scopes for the selected bucket
-		const scopes = await bucketManager.getAllScopes();
-
-		// Filter scopes if a specific scope is selected
-		const filteredScopes = scopes.filter((scope) => scope.name === selectedScope.value);
-
-		// If the selected scope doesn't exist in the bucket, throw an error
-		if (filteredScopes.length === 0) {
-			throw new NodeOperationError(
-				this.getNode(),
-				`Scope "${selectedScope.value}" not found in bucket "${bucketName}".`,
-			);
-		}
-
-		// Create a flat list of all collections across filtered scopes
-		const allCollections = [];
-
-		for (const scope of filteredScopes) {
-			for (const collection of scope.collections) {
-				allCollections.push({
-					name: `${collection.name}`,
-					value: `${collection.name}`,
-				});
-			}
-		}
-
-		return { results: allCollections };
-	} catch (error) {
-		if (error instanceof BucketNotFoundError) {
-			throw new NodeOperationError(this.getNode(), `Please select a bucket and scope.`);
-		}
-		throw new NodeOperationError(this.getNode(), `Error: ${error.message}`);
-	} finally {
-		await cluster.close();
-	}
-}
-
-async function couchbaseCredentialTest(
-	this: ICredentialTestFunctions,
-	credential: ICredentialsDecrypted,
-): Promise<INodeCredentialTestResult> {
-	try {
-		const { cluster } = await connectToCouchbase(this);
-		const ping: PingResult = await cluster.ping();
-		console.log(ping);
-		await cluster.close();
-	} catch (error) {
-		return {
-			status: 'Error',
-			message: (error as Error).message,
-		};
-	}
-	return {
-		status: 'OK',
-		message: 'Connection successful!',
-	};
-}
-
 export class Couchbase implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Couchbase',
 		name: 'couchbase',
-		icon: { light: 'file:couchbase.svg', dark: 'file:couchbase.dark.svg' },
+		icon: { light: 'file:../icons/couchbase.svg', dark: 'file:../icons/couchbase.dark.svg' },
 		group: ['input'],
 		version: 1.0,
 		subtitle: '={{$parameter["resource"] + ": " + $parameter["operation"]}}',
@@ -276,19 +82,16 @@ export class Couchbase implements INodeType {
 			{
 				name: 'couchbaseApi',
 				required: true,
-				// testedBy is not working for custom nodes per https://community.n8n.io/t/bug-cant-use-credentialtest-method-in-custom-node/94069.
-				testedBy: 'couchbaseCredentialTest',
 			},
 		],
 		properties: couchbaseProperties,
 	};
 
 	methods = {
-		credentialTest: { couchbaseCredentialTest },
 		listSearch: {
-			couchbaseBucketSearch,
-			couchbaseScopeSearch,
-			couchbaseCollectionSearch,
+			populateCouchbaseBucketRL,
+			populateCouchbaseScopeRL,
+			populateCouchbaseCollectionRL,
 			populateCouchbaseSearchIndexesRL,
 		},
 	};
@@ -396,8 +199,6 @@ export class Couchbase implements INodeType {
 			await cluster.searchIndexes().upsertIndex(indexDefinition as ISearchIndex);
 			responseData = [{ message: 'Index created successfully' }];
 		}
-
-		await cluster.close();
 
 		const items = this.getInputData();
 		const itemData = generatePairedItemData(items.length);

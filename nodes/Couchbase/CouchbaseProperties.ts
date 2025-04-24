@@ -280,7 +280,7 @@ export const nodeProperties: INodeProperties[] = [
 						name: 'list',
 						type: 'list',
 						typeOptions: {
-							searchListMethod: 'couchbaseBucketSearch',
+							searchListMethod: 'populateCouchbaseBucketRL',
 						},
 					},
 					{
@@ -306,7 +306,7 @@ export const nodeProperties: INodeProperties[] = [
 						name: 'list',
 						type: 'list',
 						typeOptions: {
-							searchListMethod: 'couchbaseBucketSearch',
+							searchListMethod: 'populateCouchbaseBucketRL',
 						},
 					},
 					{
@@ -348,7 +348,7 @@ export const nodeProperties: INodeProperties[] = [
 						name: 'list',
 						type: 'list',
 						typeOptions: {
-							searchListMethod: 'couchbaseScopeSearch',
+							searchListMethod: 'populateCouchbaseScopeRL',
 						},
 					},
 					{
@@ -377,7 +377,7 @@ export const nodeProperties: INodeProperties[] = [
 						name: 'list',
 						type: 'list',
 						typeOptions: {
-							searchListMethod: 'couchbaseScopeSearch',
+							searchListMethod: 'populateCouchbaseScopeRL',
 						},
 					},
 					{
@@ -410,7 +410,7 @@ export const nodeProperties: INodeProperties[] = [
 				name: 'list',
 				type: 'list',
 				typeOptions: {
-					searchListMethod: 'couchbaseCollectionSearch',
+					searchListMethod: 'populateCouchbaseCollectionRL',
 				},
 			},
 			{

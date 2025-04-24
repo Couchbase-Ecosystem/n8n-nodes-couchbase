@@ -25,7 +25,7 @@
     "preinstall": "npx only-allow pnpm",
     "build": "tsc && gulp build:icons",
     "dev": "tsc --watch",
-    "dev:ui": "nodemon -w nodes -w credentials --ext ts --exec 'tsc && cd $HOME/.n8n/custom && COREPACK_ENABLE_STRICT=0 pnpm install && cd - && n8n'",
+    "dev:ui": "nodemon -w nodes -w credentials --ext ts --exec 'tsc && tsc-alias && cd $HOME/.n8n/custom && COREPACK_ENABLE_STRICT=0 pnpm install && cd - && n8n'",
     "format": "prettier nodes credentials --write",
     "lint": "eslint nodes credentials package.json",
     "lintfix": "eslint nodes credentials package.json --fix",
@@ -40,7 +40,8 @@
       "dist/credentials/CouchbaseApi.credentials.js"
     ],
     "nodes": [
-      "dist/nodes/Couchbase/Couchbase.node.js"
+      "dist/nodes/Couchbase/Couchbase.node.js",
+      "dist/nodes/Couchbase/vector_store/VectorStoreCouchbaseSearch.node.js"
     ]
   },
   "devDependencies": {
@@ -51,14 +52,21 @@
     "gulp": "^4.0.2",
     "nodemon": "^3.1.9",
     "prettier": "^3.3.2",
-    "typescript": "^5.5.3",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "tsc-alias": "^1.8.13",
+    "typescript": "^5.5.3"
   },
   "peerDependencies": {
     "n8n-workflow": "*"
   },
   "dependencies": {
+    "@langchain/community": "^0.3.38",
+    "@langchain/core": "^0.3.43",
+    "@langchain/textsplitters": "^0.1.0",
+    "langchain": "^0.3.19",
     "couchbase": "^4.4.5",
-    "uuid": "^11.1.0"
+    "tmp-promise": "^3.0.3",
+    "uuid": "^11.1.0",
+    "zod": "^3.24.2"
   }
 }

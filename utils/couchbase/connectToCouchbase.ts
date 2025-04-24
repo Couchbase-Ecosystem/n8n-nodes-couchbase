@@ -15,23 +15,49 @@ import {
 	UnambiguousTimeoutError,
 } from 'couchbase';
 
-// Declare clusterInstance outside the function scope to maintain it
+// Declare clusterInstance and credentials cache outside the function scope
 let clusterInstance: Cluster | undefined;
+let cachedCredentials: {
+	connectionString?: string;
+	username?: string;
+	password?: string;
+} = {};
 
 export async function connectToCouchbase(
 	context: IExecuteFunctions | ISupplyDataFunctions | ILoadOptionsFunctions,
 ) {
-	// Check if a cluster connection already exists
-	if (!clusterInstance) {
-		// If not, create a new connection
-		const credentials = await context.getCredentials('couchbaseApi');
-		const connectionString = credentials.couchbaseConnectionString as string;
-		const username = credentials.couchbaseUsername as string;
-		const password = credentials.couchbasePassword as string;
+	// Get current credentials
+	const credentials = await context.getCredentials('couchbaseApi');
+	const connectionString = credentials.couchbaseConnectionString as string;
+	const username = credentials.couchbaseUsername as string;
+	const password = credentials.couchbasePassword as string;
 
+	// Check if credentials have changed or if connection doesn't exist
+	const credentialsChanged =
+		!clusterInstance ||
+		connectionString !== cachedCredentials.connectionString ||
+		username !== cachedCredentials.username ||
+		password !== cachedCredentials.password;
+
+	if (credentialsChanged) {
+		// Close existing connection if it exists
+		if (clusterInstance) {
+			try {
+				context.logger.info('Credentials changed, closing existing Couchbase connection...');
+				await clusterInstance.close();
+				context.logger.info('Previous Couchbase connection closed.');
+			} catch (closeError) {
+				context.logger.warn(`Error closing previous connection: ${closeError.message}`);
+				// Continue anyway to establish new connection
+			} finally {
+				// Reset the instance regardless of close success/failure
+				clusterInstance = undefined;
+			}
+		}
+
+		// Create a new connection with new credentials
 		try {
-			// Connecting to the database
-			context.logger.info('Opening a Couchbase connection...');
+			context.logger.info('Opening a new Couchbase connection...');
 			clusterInstance = await connect(connectionString, {
 				username: username,
 				password: password,
@@ -39,15 +65,25 @@ export async function connectToCouchbase(
 					connectTimeout: 10000, // 10 seconds
 				},
 			});
+
+			// Update cached credentials
+			cachedCredentials = {
+				connectionString,
+				username,
+				password,
+			};
+
 			context.logger.info('Couchbase connection established.');
 		} catch (error) {
-			// Ensure clusterInstance remains undefined if connection fails
+			// Ensure clusterInstance and cachedCredentials are reset if connection fails
 			clusterInstance = undefined;
+			cachedCredentials = {};
+
 			throw new NodeOperationError(
 				context.getNode(),
 				`Could not connect to database: ${error.message}.`,
 				{
-					description: makeConnectionErrorDescription(error as CouchbaseError), // Added type assertion
+					description: makeConnectionErrorDescription(error as CouchbaseError),
 				},
 			);
 		}
@@ -73,9 +109,8 @@ export async function connectToCouchbase(
 
 	let collection: Collection = {} as Collection;
 	try {
-		// Use the singleton clusterInstance here
 		if (
-			clusterInstance && // Ensure clusterInstance is valid before using
+			clusterInstance &&
 			typeof selectedBucket.value === 'string' &&
 			typeof selectedScope.value === 'string' &&
 			typeof selectedCollection.value === 'string'
@@ -83,12 +118,9 @@ export async function connectToCouchbase(
 			const bucket: Bucket = clusterInstance.bucket(selectedBucket.value);
 			collection = bucket.scope(selectedScope.value).collection(selectedCollection.value);
 		} else if (!clusterInstance) {
-			// This case should ideally not be reached if the connection logic above is sound,
-			// but added for robustness.
 			throw new Error('Cluster connection is not available.');
 		}
 	} catch (error) {
-		// Handle errors related to accessing bucket/scope/collection
 		throw new NodeOperationError(
 			context.getNode(),
 			`Could not access collection: ${error.message}.`,
@@ -99,7 +131,6 @@ export async function connectToCouchbase(
 		);
 	}
 
-	// Return the singleton cluster and the specific collection
 	return { cluster: clusterInstance, collection };
 }
 

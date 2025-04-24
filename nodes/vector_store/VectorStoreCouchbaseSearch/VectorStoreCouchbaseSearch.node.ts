@@ -34,7 +34,7 @@ const couchbaseBucketRL: INodeProperties = {
 			name: 'list',
 			type: 'list',
 			typeOptions: {
-				searchListMethod: 'populateCouchbaseBucketRL', // Method to fetch collections
+				searchListMethod: 'populateCouchbaseBucketRL',
 			},
 		},
 		{
@@ -61,7 +61,7 @@ const couchbaseScopeRL: INodeProperties = {
 			name: 'list',
 			type: 'list',
 			typeOptions: {
-				searchListMethod: 'populateCouchbaseScopeRL', // Method to fetch collections
+				searchListMethod: 'populateCouchbaseScopeRL',
 			},
 		},
 		{
@@ -88,7 +88,7 @@ const couchbaseCollectionRL: INodeProperties = {
 			name: 'list',
 			type: 'list',
 			typeOptions: {
-				searchListMethod: 'populateCouchbaseCollectionRL', // Method to fetch collections
+				searchListMethod: 'populateCouchbaseCollectionRL',
 			},
 		},
 		{
@@ -279,6 +279,7 @@ export class VectorStoreCouchbaseSearch extends createVectorStoreNode<CouchbaseV
 			{
 				name: 'couchbaseApi',
 				required: true,
+				// testedBy is not working for custom nodes per https://community.n8n.io/t/bug-cant-use-credentialtest-method-in-custom-node/94069.
 				// testedBy: 'couchbaseCredentialTest',
 			},
 		],
@@ -355,7 +356,6 @@ export class VectorStoreCouchbaseSearch extends createVectorStoreNode<CouchbaseV
 				couchbaseCollectionName,
 			);
 
-			// for the query vector: https://github.com/Couchbase-Ecosystem/langchain-couchbase/compare/main...query_vector_search#diff-02cc18bf16d1a63085e04008b96d0ee8cc8ed9d408caa8bf4dd048aed4bc00d6R507
 			const couchbaseConfig: CouchbaseVectorStoreArgs = {
 				cluster,
 				bucketName: couchbaseBucketName,

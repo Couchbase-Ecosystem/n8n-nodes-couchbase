@@ -192,7 +192,7 @@ const searchTypeOptions = [
 	},
 ];
 
-// for the defaults
+// Defaults
 const DOCUMENT_RESOURCE_VALUE = RESOURCE.DOCUMENT;
 const DOCUMENT_OPS_QUERY_VALUE = DOCUMENT_OPS.QUERY;
 const SEARCH_OPS_SEARCH_VALUE = SEARCH_OPS.RETRIEVE;
@@ -421,7 +421,7 @@ export const nodeProperties: INodeProperties[] = [
 				name: 'list',
 				type: 'list',
 				typeOptions: {
-					searchListMethod: 'couchbaseCollectionSearch', // Method to fetch collections
+					searchListMethod: 'couchbaseCollectionSearch',
 				},
 			},
 			{

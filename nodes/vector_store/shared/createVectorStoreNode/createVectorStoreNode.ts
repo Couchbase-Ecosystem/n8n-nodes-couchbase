@@ -102,7 +102,6 @@ export const createVectorStoreNode = <T extends VectorStore = VectorStore>(
 					name: 'mode',
 					type: 'options',
 					noDataExpression: true,
-					// default: 'retrieve',
 					default: '',
 					options: getOperationModeOptions(args),
 				},

@@ -45,7 +45,7 @@ To use the Couchbase node, you'll need to set up Couchbase credentials in n8n:
    - [Allow IP address](https://docs.couchbase.com/cloud/clusters/allow-ip-address.html) for your n8n instance
 
 2. **Credential Parameters**:
-   - **Connection String**: The connection string to your Couchbase server (e.g., `couchbase://localhost`)
+   - **Connection String**: The connection string to your Couchbase server (e.g., `couchbases://<hostname>`)
    - **Username**: Database access username
    - **Password**: Database access password
 

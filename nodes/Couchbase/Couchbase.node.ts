@@ -36,6 +36,7 @@ import {
 	nodeProperties as couchbaseProperties,
 	SEARCH_OPS,
 } from './CouchbaseProperties';
+import { populateCouchbaseSearchIndexesRL } from '@utils/couchbase/populateCouchbaseRLs';
 
 async function connectToCouchbase(context: any) {
 	const credentials = await context.getCredentials('couchbaseApi');
@@ -284,7 +285,12 @@ export class Couchbase implements INodeType {
 
 	methods = {
 		credentialTest: { couchbaseCredentialTest },
-		listSearch: { couchbaseBucketSearch, couchbaseScopeSearch, couchbaseCollectionSearch },
+		listSearch: {
+			couchbaseBucketSearch,
+			couchbaseScopeSearch,
+			couchbaseCollectionSearch,
+			populateCouchbaseSearchIndexesRL,
+		},
 	};
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
@@ -349,7 +355,9 @@ export class Couchbase implements INodeType {
 			responseData = queryResult.rows;
 		} else if (operation === SEARCH_OPS.RETRIEVE) {
 			const isAdvancedMode = this.getNodeParameter('advancedMode', 0) as boolean;
-			const indexName = this.getNodeParameter('indexName', 0) as string;
+			const indexName = this.getNodeParameter('indexName', 0, '', {
+				extractValue: true,
+			}) as string;
 			if (isAdvancedMode) {
 				const rawQuery = this.getNodeParameter('rawQuery', 0) as string;
 

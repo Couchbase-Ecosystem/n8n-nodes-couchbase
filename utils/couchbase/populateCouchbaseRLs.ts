@@ -117,7 +117,7 @@ export async function populateCouchbaseSearchIndexesRL(this: ILoadOptionsFunctio
 	try {
 		const allIndexes = [];
 
-		const useScopedIndex = this.getNodeParameter('useScopedIndex') as boolean;
+		const useScopedIndex = this.getNodeParameter('useScopedIndex', false) as boolean;
 		if (useScopedIndex) {
 			const selectedBucket = this.getNodeParameter(
 				'couchbaseBucket',

@@ -192,7 +192,7 @@ const searchTypeOptions = [
 	},
 ];
 
-// for the defaults
+// Defaults
 const DOCUMENT_RESOURCE_VALUE = RESOURCE.DOCUMENT;
 const DOCUMENT_OPS_QUERY_VALUE = DOCUMENT_OPS.QUERY;
 const SEARCH_OPS_SEARCH_VALUE = SEARCH_OPS.RETRIEVE;
@@ -254,17 +254,6 @@ export const nodeProperties: INodeProperties[] = [
 		default: SEARCH_TYPE_FULL_TEXT_VALUE,
 		description: 'Type of search to perform',
 	},
-	{
-		displayName: 'Advanced Mode',
-		name: 'advancedMode',
-		type: 'boolean',
-		displayOptions: showFor({
-			resource: RESOURCE.SEARCH,
-			operation: [SEARCH_OPS.RETRIEVE],
-		}),
-		default: false,
-		description: 'Whether to use advanced mode to provide a raw JSON query',
-	},
 
 	...createFieldWithVaryingRequirements(
 		'Couchbase Bucket',
@@ -291,7 +280,7 @@ export const nodeProperties: INodeProperties[] = [
 						name: 'list',
 						type: 'list',
 						typeOptions: {
-							searchListMethod: 'couchbaseBucketSearch',
+							searchListMethod: 'populateCouchbaseBucketRL',
 						},
 					},
 					{
@@ -317,7 +306,7 @@ export const nodeProperties: INodeProperties[] = [
 						name: 'list',
 						type: 'list',
 						typeOptions: {
-							searchListMethod: 'couchbaseBucketSearch',
+							searchListMethod: 'populateCouchbaseBucketRL',
 						},
 					},
 					{
@@ -359,7 +348,7 @@ export const nodeProperties: INodeProperties[] = [
 						name: 'list',
 						type: 'list',
 						typeOptions: {
-							searchListMethod: 'couchbaseScopeSearch',
+							searchListMethod: 'populateCouchbaseScopeRL',
 						},
 					},
 					{
@@ -388,7 +377,7 @@ export const nodeProperties: INodeProperties[] = [
 						name: 'list',
 						type: 'list',
 						typeOptions: {
-							searchListMethod: 'couchbaseScopeSearch',
+							searchListMethod: 'populateCouchbaseScopeRL',
 						},
 					},
 					{
@@ -421,7 +410,7 @@ export const nodeProperties: INodeProperties[] = [
 				name: 'list',
 				type: 'list',
 				typeOptions: {
-					searchListMethod: 'couchbaseCollectionSearch', // Method to fetch collections
+					searchListMethod: 'populateCouchbaseCollectionRL',
 				},
 			},
 			{
@@ -524,15 +513,50 @@ export const nodeProperties: INodeProperties[] = [
 	{
 		displayName: 'Index Name',
 		name: 'indexName',
-		type: 'string',
+		type: 'resourceLocator',
+		default: { mode: 'list', value: '' },
 		required: true,
+		description: 'The name of the search index to query',
+		typeOptions: {
+			loadOptionsDependsOn: [
+				'useScopedIndex',
+				'couchbaseBucket.value',
+				'couchbaseScope.value',
+				'couchbaseCollection.value',
+			],
+		},
 		displayOptions: showFor({
 			resource: RESOURCE.SEARCH,
 			operation: [SEARCH_OPS.RETRIEVE],
 		}),
-		default: '',
-		placeholder: 'bucket.scope.indexName',
-		description: 'Name of the search index to query',
+		modes: [
+			{
+				displayName: 'From List',
+				name: 'list',
+				type: 'list',
+				typeOptions: {
+					searchListMethod: 'populateCouchbaseSearchIndexesRL',
+				},
+			},
+			{
+				displayName: 'Name',
+				name: 'name',
+				type: 'string',
+				placeholder: 'e.g. my_index',
+			},
+		],
+	},
+
+	{
+		displayName: 'Advanced Mode',
+		name: 'advancedMode',
+		type: 'boolean',
+		displayOptions: showFor({
+			resource: RESOURCE.SEARCH,
+			operation: [SEARCH_OPS.RETRIEVE],
+		}),
+		default: false,
+		description: 'Whether to use advanced mode to provide a raw JSON query',
 	},
 
 	// Full-text search specific fields

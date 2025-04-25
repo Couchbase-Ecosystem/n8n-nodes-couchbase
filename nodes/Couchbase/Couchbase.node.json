@@ -1,17 +1,17 @@
 {
 	"node": "n8n-nodes-base.couchbase",
-	"nodeVersion": "1.0",
+	"nodeVersion": "1.1",
 	"codexVersion": "1.0",
 	"categories": ["Development", "Data & Storage"],
 	"resources": {
 		"credentialDocumentation": [
 			{
-				"url": "https://github.com/Couchbase-Ecosystem/n8n-nodes-couchbase"
+				"url": "https://github.com/Couchbase-Ecosystem/n8n-nodes-couchbase?tab=readme-ov-file#credentials"
 			}
 		],
 		"primaryDocumentation": [
 			{
-				"url": "https://github.com/Couchbase-Ecosystem/n8n-nodes-couchbase"
+				"url": "https://github.com/Couchbase-Ecosystem/n8n-nodes-couchbase/blob/master/nodes/Couchbase/README.md"
 			}
 		]
 	}

@@ -154,7 +154,6 @@ export class Couchbase implements INodeType {
 		const operation = this.getNodeParameter('operation', 0);
 
 		const { cluster } = await connectToCouchbase(this);
-		const collection = await getCollection(this, cluster);
 
 		const returnItems: INodeExecutionData[] = [];
 		let responseData: IDataObject | IDataObject[] = [];
@@ -170,20 +169,24 @@ export class Couchbase implements INodeType {
 				const specifiedDocumentId = this.getNodeParameter('documentId', 0, '') as string;
 				id = specifiedDocumentId.trim();
 			}
+			const collection = await getCollection(this, cluster);
 			await collection.insert(id, documentToInsert);
 
 			responseData = [{ id: id, value: documentToInsert }];
 		} else if (operation === DOCUMENT_OPS.UPSERT) {
 			const newDocumentValue = this.getNodeParameter('documentValue', 0, '') as string;
 			const id = this.getNodeParameter('documentId', 0, '') as string;
+			const collection = await getCollection(this, cluster);
 			await collection.upsert(id, newDocumentValue);
 			responseData = [{ id, value: newDocumentValue }];
 		} else if (operation === DOCUMENT_OPS.DELETE) {
 			const documentId = this.getNodeParameter('documentId', 0, '') as string;
+			const collection = await getCollection(this, cluster);
 			const removeResult: MutationResult = await collection.remove(documentId);
 			responseData = [{ id: documentId, value: removeResult }];
 		} else if (operation === DOCUMENT_OPS.READ) {
 			const documentId = this.getNodeParameter('documentId', 0, '') as string;
+			const collection = await getCollection(this, cluster);
 			const getResult: GetResult = await collection.get(documentId);
 			const responseJson = JSON.stringify(getResult.content);
 			responseData = [{ id: documentId, value: responseJson }];

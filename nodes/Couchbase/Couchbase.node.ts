@@ -6,6 +6,7 @@ import {
 	INodeType,
 	INodeTypeDescription,
 	IPairedItemData,
+	NodeOperationError,
 } from 'n8n-workflow';
 
 import {
@@ -82,10 +83,21 @@ function getCollection(context: IExecuteFunctions, cluster: Cluster): Collection
 		'',
 	) as INodeParameterResourceLocator;
 
-	return cluster
-		.bucket(couchbaseBucketName.value as string)
-		.scope(couchbaseScopeName.value as string)
-		.collection(couchbaseCollectionName.value as string);
+	try {
+		return cluster
+			.bucket(couchbaseBucketName.value as string)
+			.scope(couchbaseScopeName.value as string)
+			.collection(couchbaseCollectionName.value as string);
+	} catch (error) {
+		throw new NodeOperationError(
+			context.getNode(),
+			`Could not access collection: ${error.message}.`,
+			{
+				description:
+					'Please ensure the selected bucket, scope, and collection exist and the credentials have permissions.',
+			},
+		);
+	}
 }
 
 export class Couchbase implements INodeType {

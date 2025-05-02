@@ -6,9 +6,12 @@ import {
 	INodeType,
 	INodeTypeDescription,
 	IPairedItemData,
+	NodeOperationError,
 } from 'n8n-workflow';
 
 import {
+	Cluster,
+	Collection,
 	GetResult,
 	ISearchIndex,
 	MutationResult,
@@ -31,7 +34,12 @@ import {
 	populateCouchbaseSearchIndexesRL,
 } from '@utils/couchbase/populateCouchbaseRLs';
 import { connectToCouchbase } from '@utils/couchbase/connectToCouchbase';
+import { validateBucketScopeCollection } from '@utils/couchbase/validateBucketScopeCollection';
 
+/**
+ * Processes search results to remove empty objects and undefined values, then formats them into an array of IDataObject
+ * @param rows
+ */
 function processSearchResults(rows: any[]): IDataObject[] {
 	const processedData = rows.map((row) =>
 		Object.fromEntries(
@@ -61,6 +69,52 @@ function transformRawJsonQueryToValidSearchOptions(rawJsonQuery: any): SearchQue
 		// Place top level fields inside the raw field
 		raw: { ...topLevelFields },
 	} as SearchQueryOptions;
+}
+
+/**
+ * Retrieves the collection from the Couchbase cluster using the provided parameters
+ * @param context
+ * @param cluster
+ */
+async function getCollection(context: IExecuteFunctions, cluster: Cluster): Promise<Collection> {
+	const couchbaseBucketName = context.getNodeParameter(
+		'couchbaseBucket',
+		0,
+		'',
+	) as INodeParameterResourceLocator;
+	const couchbaseScopeName = context.getNodeParameter(
+		'couchbaseScope',
+		0,
+		'',
+	) as INodeParameterResourceLocator;
+	const couchbaseCollectionName = context.getNodeParameter(
+		'couchbaseCollection',
+		0,
+		'',
+	) as INodeParameterResourceLocator;
+
+	await validateBucketScopeCollection(
+		context,
+		couchbaseBucketName.value as string,
+		couchbaseScopeName.value as string,
+		couchbaseCollectionName.value as string,
+	);
+
+	try {
+		return cluster
+			.bucket(couchbaseBucketName.value as string)
+			.scope(couchbaseScopeName.value as string)
+			.collection(couchbaseCollectionName.value as string);
+	} catch (error) {
+		throw new NodeOperationError(
+			context.getNode(),
+			`Could not access collection: ${error.message}.`,
+			{
+				description:
+					'Please ensure the selected bucket, scope, and collection exist and the credentials have permissions.',
+			},
+		);
+	}
 }
 
 export class Couchbase implements INodeType {
@@ -99,7 +153,7 @@ export class Couchbase implements INodeType {
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const operation = this.getNodeParameter('operation', 0);
 
-		const { cluster, collection } = await connectToCouchbase(this);
+		const { cluster } = await connectToCouchbase(this);
 
 		const returnItems: INodeExecutionData[] = [];
 		let responseData: IDataObject | IDataObject[] = [];
@@ -115,20 +169,24 @@ export class Couchbase implements INodeType {
 				const specifiedDocumentId = this.getNodeParameter('documentId', 0, '') as string;
 				id = specifiedDocumentId.trim();
 			}
+			const collection = await getCollection(this, cluster);
 			await collection.insert(id, documentToInsert);
 
 			responseData = [{ id: id, value: documentToInsert }];
 		} else if (operation === DOCUMENT_OPS.UPSERT) {
 			const newDocumentValue = this.getNodeParameter('documentValue', 0, '') as string;
 			const id = this.getNodeParameter('documentId', 0, '') as string;
+			const collection = await getCollection(this, cluster);
 			await collection.upsert(id, newDocumentValue);
 			responseData = [{ id, value: newDocumentValue }];
 		} else if (operation === DOCUMENT_OPS.DELETE) {
 			const documentId = this.getNodeParameter('documentId', 0, '') as string;
+			const collection = await getCollection(this, cluster);
 			const removeResult: MutationResult = await collection.remove(documentId);
 			responseData = [{ id: documentId, value: removeResult }];
 		} else if (operation === DOCUMENT_OPS.READ) {
 			const documentId = this.getNodeParameter('documentId', 0, '') as string;
+			const collection = await getCollection(this, cluster);
 			const getResult: GetResult = await collection.get(documentId);
 			const responseJson = JSON.stringify(getResult.content);
 			responseData = [{ id: documentId, value: responseJson }];
@@ -214,6 +272,11 @@ export class Couchbase implements INodeType {
 	}
 }
 
+/**
+ * Generates an array of paired item data
+ * @param length
+ * @returns IPairedItemData[] - array containing paired item data
+ */
 function generatePairedItemData(length: number): IPairedItemData[] {
 	return Array.from({ length }, (_, item) => ({
 		item,

@@ -1,15 +1,12 @@
 import {
 	IExecuteFunctions,
 	ILoadOptionsFunctions,
-	INodeParameterResourceLocator,
 	ISupplyDataFunctions,
 	NodeOperationError,
 } from 'n8n-workflow';
 import {
 	AuthenticationFailureError,
-	Bucket,
 	Cluster,
-	Collection,
 	connect,
 	CouchbaseError,
 	UnambiguousTimeoutError,
@@ -23,9 +20,17 @@ let cachedCredentials: {
 	password?: string;
 } = {};
 
+/**
+ * Connects to Couchbase using the provided credentials.
+ * If the credentials have changed, it closes the existing connection and opens a new one.
+ *
+ * @param context - The context object containing credentials and logger.
+ * @returns {Promise<{ cluster: Cluster }>} - The connected cluster instance.
+ * @throws {NodeOperationError} - If the connection fails or if the cluster instance is not available.
+ */
 export async function connectToCouchbase(
 	context: IExecuteFunctions | ISupplyDataFunctions | ILoadOptionsFunctions,
-) {
+): Promise<{ cluster: Cluster; }> {
 	// Get current credentials
 	const credentials = await context.getCredentials('couchbaseApi');
 	const connectionString = credentials.couchbaseConnectionString as string;
@@ -89,49 +94,11 @@ export async function connectToCouchbase(
 		}
 	}
 
-	// --- Get specific collection using the (potentially reused) cluster instance ---
-
-	const selectedBucket = context.getNodeParameter(
-		'couchbaseBucket',
-		0,
-		'',
-	) as INodeParameterResourceLocator;
-	const selectedScope = context.getNodeParameter(
-		'couchbaseScope',
-		0,
-		'',
-	) as INodeParameterResourceLocator;
-	const selectedCollection = context.getNodeParameter(
-		'couchbaseCollection',
-		0,
-		'',
-	) as INodeParameterResourceLocator;
-
-	let collection: Collection = {} as Collection;
-	try {
-		if (
-			clusterInstance &&
-			typeof selectedBucket.value === 'string' &&
-			typeof selectedScope.value === 'string' &&
-			typeof selectedCollection.value === 'string'
-		) {
-			const bucket: Bucket = clusterInstance.bucket(selectedBucket.value);
-			collection = bucket.scope(selectedScope.value).collection(selectedCollection.value);
-		} else if (!clusterInstance) {
+		if (!clusterInstance) {
 			throw new Error('Cluster connection is not available.');
 		}
-	} catch (error) {
-		throw new NodeOperationError(
-			context.getNode(),
-			`Could not access collection: ${error.message}.`,
-			{
-				description:
-					'Please ensure the selected bucket, scope, and collection exist and the credentials have permissions.',
-			},
-		);
-	}
 
-	return { cluster: clusterInstance, collection };
+	return { cluster: clusterInstance };
 }
 
 function makeConnectionErrorDescription(error: CouchbaseError): string {

@@ -2,6 +2,13 @@ import { IExecuteFunctions, ISupplyDataFunctions, NodeOperationError } from 'n8n
 import { connectToCouchbase } from './connectToCouchbase';
 import { BucketNotFoundError } from 'couchbase';
 
+/**
+ * Validates the existence of a bucket, scope, and collection in Couchbase, and ensures they are correctly related.
+ * @param context
+ * @param bucketName
+ * @param scopeName
+ * @param collectionName
+ */
 export async function validateBucketScopeCollection(
 	context: IExecuteFunctions | ISupplyDataFunctions,
 	bucketName: string,
@@ -61,7 +68,7 @@ export async function validateBucketScopeCollection(
 		} catch (error) {
 			if (error instanceof BucketNotFoundError) {
 				throw new NodeOperationError(context.getNode(), `Bucket "${bucketName}" not found.`, {
-					description: 'Please censure the bucket exists in your Couchbase cluster.',
+					description: 'Please ensure the bucket exists in your Couchbase cluster.',
 				});
 			}
 			// Re-throw other errors that might have occurred

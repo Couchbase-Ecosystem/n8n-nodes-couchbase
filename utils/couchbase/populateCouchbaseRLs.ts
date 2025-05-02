@@ -6,6 +6,9 @@ import {
 import { connectToCouchbase } from './connectToCouchbase';
 import { BucketNotFoundError } from 'couchbase';
 
+/**
+ * Populates the Couchbase bucket resource locator.
+ */
 export async function populateCouchbaseBucketRL(this: ILoadOptionsFunctions) {
 	const { cluster } = await connectToCouchbase(this);
 
@@ -26,6 +29,9 @@ export async function populateCouchbaseBucketRL(this: ILoadOptionsFunctions) {
 	}
 }
 
+/**
+ * Populates the Couchbase scope resource locator.
+ */
 export async function populateCouchbaseScopeRL(this: ILoadOptionsFunctions) {
 	const selectedBucket = this.getNodeParameter('couchbaseBucket') as INodeParameterResourceLocator;
 
@@ -60,6 +66,9 @@ export async function populateCouchbaseScopeRL(this: ILoadOptionsFunctions) {
 	}
 }
 
+/**
+ * Populates the Couchbase collection resource locator.
+ */
 export async function populateCouchbaseCollectionRL(this: ILoadOptionsFunctions) {
 	// Get selected bucket and scope from parameters
 	const selectedBucket = this.getNodeParameter('couchbaseBucket') as INodeParameterResourceLocator;
@@ -112,6 +121,9 @@ export async function populateCouchbaseCollectionRL(this: ILoadOptionsFunctions)
 	}
 }
 
+/**
+ * Populates the Couchbase search index resource locator.
+ */
 export async function populateCouchbaseSearchIndexesRL(this: ILoadOptionsFunctions) {
 	const { cluster } = await connectToCouchbase(this);
 	try {

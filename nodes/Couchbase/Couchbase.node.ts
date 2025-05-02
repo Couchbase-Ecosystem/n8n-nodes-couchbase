@@ -36,6 +36,10 @@ import {
 import { connectToCouchbase } from '@utils/couchbase/connectToCouchbase';
 import { validateBucketScopeCollection } from '@utils/couchbase/validateBucketScopeCollection';
 
+/**
+ * Processes search results to remove empty objects and undefined values, then formats them into an array of IDataObject
+ * @param rows
+ */
 function processSearchResults(rows: any[]): IDataObject[] {
 	const processedData = rows.map((row) =>
 		Object.fromEntries(
@@ -67,6 +71,11 @@ function transformRawJsonQueryToValidSearchOptions(rawJsonQuery: any): SearchQue
 	} as SearchQueryOptions;
 }
 
+/**
+ * Retrieves the collection from the Couchbase cluster using the provided parameters
+ * @param context
+ * @param cluster
+ */
 async function getCollection(context: IExecuteFunctions, cluster: Cluster): Promise<Collection> {
 	const couchbaseBucketName = context.getNodeParameter(
 		'couchbaseBucket',
@@ -260,6 +269,11 @@ export class Couchbase implements INodeType {
 	}
 }
 
+/**
+ * Generates an array of paired item data
+ * @param length
+ * @returns IPairedItemData[] - array containing paired item data
+ */
 function generatePairedItemData(length: number): IPairedItemData[] {
 	return Array.from({ length }, (_, item) => ({
 		item,

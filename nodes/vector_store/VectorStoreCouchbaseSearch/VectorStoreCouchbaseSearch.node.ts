@@ -225,10 +225,24 @@ const insertFields: INodeProperties[] = [
 	},
 ];
 
+/**
+ * Get common parameters for Couchbase Vector Store
+ * @param context
+ * @param itemIndex
+ * @returns {couchbaseBucketName: string, couchbaseScopeName: string, couchbaseCollectionName: string, isUseScopedIndex: boolean, couchbaseVectorIndexName: string, embeddingFieldName: string, textFieldName: string}
+ */
 function getCommonNodeParameters(
 	context: IExecuteFunctions | ISupplyDataFunctions,
 	itemIndex: number,
-) {
+): {
+	couchbaseBucketName: string;
+	couchbaseScopeName: string;
+	couchbaseCollectionName: string;
+	isUseScopedIndex: boolean;
+	couchbaseVectorIndexName: string;
+	embeddingFieldName: string;
+	textFieldName: string;
+} {
 	const couchbaseBucketName = context.getNodeParameter('couchbaseBucket', itemIndex, '', {
 		extractValue: true,
 	}) as string;

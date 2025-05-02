@@ -20,9 +20,17 @@ let cachedCredentials: {
 	password?: string;
 } = {};
 
+/**
+ * Connects to Couchbase using the provided credentials.
+ * If the credentials have changed, it closes the existing connection and opens a new one.
+ *
+ * @param context - The context object containing credentials and logger.
+ * @returns {Promise<{ cluster: Cluster }>} - The connected cluster instance.
+ * @throws {NodeOperationError} - If the connection fails or if the cluster instance is not available.
+ */
 export async function connectToCouchbase(
 	context: IExecuteFunctions | ISupplyDataFunctions | ILoadOptionsFunctions,
-) {
+): Promise<{ cluster: Cluster; }> {
 	// Get current credentials
 	const credentials = await context.getCredentials('couchbaseApi');
 	const connectionString = credentials.couchbaseConnectionString as string;

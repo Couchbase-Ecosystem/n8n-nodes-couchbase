@@ -9,6 +9,8 @@ import {
 } from 'n8n-workflow';
 
 import {
+	Cluster,
+	Collection,
 	GetResult,
 	ISearchIndex,
 	MutationResult,
@@ -63,6 +65,29 @@ function transformRawJsonQueryToValidSearchOptions(rawJsonQuery: any): SearchQue
 	} as SearchQueryOptions;
 }
 
+function getCollection(context: IExecuteFunctions, cluster: Cluster): Collection {
+	const couchbaseBucketName = context.getNodeParameter(
+		'couchbaseBucket',
+		0,
+		'',
+	) as INodeParameterResourceLocator;
+	const couchbaseScopeName = context.getNodeParameter(
+		'couchbaseScope',
+		0,
+		'',
+	) as INodeParameterResourceLocator;
+	const couchbaseCollectionName = context.getNodeParameter(
+		'couchbaseCollection',
+		0,
+		'',
+	) as INodeParameterResourceLocator;
+
+	return cluster
+		.bucket(couchbaseBucketName.value as string)
+		.scope(couchbaseScopeName.value as string)
+		.collection(couchbaseCollectionName.value as string);
+}
+
 export class Couchbase implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Couchbase',
@@ -99,7 +124,8 @@ export class Couchbase implements INodeType {
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const operation = this.getNodeParameter('operation', 0);
 
-		const { cluster, collection } = await connectToCouchbase(this);
+		const { cluster } = await connectToCouchbase(this);
+		const collection = getCollection(this, cluster);
 
 		const returnItems: INodeExecutionData[] = [];
 		let responseData: IDataObject | IDataObject[] = [];

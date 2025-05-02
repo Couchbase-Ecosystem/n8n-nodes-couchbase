@@ -145,7 +145,8 @@ const embeddingField: INodeProperties = {
 	displayName: 'Embedding Field Key',
 	name: 'embedding',
 	type: 'string',
-	default: 'embedding',
+	placeholder: 'e.g. embedding',
+	default: '',
 	description: 'The field with the embedding array',
 	required: true,
 };
@@ -154,7 +155,8 @@ const textField: INodeProperties = {
 	displayName: 'Text Field Key',
 	name: 'textFieldKey',
 	type: 'string',
-	default: 'text',
+	placeholder: 'e.g. description',
+	default: '',
 	description: 'The field with the raw (text) data',
 	required: true,
 };

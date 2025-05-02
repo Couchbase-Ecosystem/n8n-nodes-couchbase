@@ -34,6 +34,7 @@ import {
 	populateCouchbaseSearchIndexesRL,
 } from '@utils/couchbase/populateCouchbaseRLs';
 import { connectToCouchbase } from '@utils/couchbase/connectToCouchbase';
+import { validateBucketScopeCollection } from '@utils/couchbase/validateBucketScopeCollection';
 
 function processSearchResults(rows: any[]): IDataObject[] {
 	const processedData = rows.map((row) =>
@@ -66,7 +67,7 @@ function transformRawJsonQueryToValidSearchOptions(rawJsonQuery: any): SearchQue
 	} as SearchQueryOptions;
 }
 
-function getCollection(context: IExecuteFunctions, cluster: Cluster): Collection {
+async function getCollection(context: IExecuteFunctions, cluster: Cluster): Promise<Collection> {
 	const couchbaseBucketName = context.getNodeParameter(
 		'couchbaseBucket',
 		0,
@@ -82,6 +83,13 @@ function getCollection(context: IExecuteFunctions, cluster: Cluster): Collection
 		0,
 		'',
 	) as INodeParameterResourceLocator;
+
+	await validateBucketScopeCollection(
+		context,
+		couchbaseBucketName.value as string,
+		couchbaseScopeName.value as string,
+		couchbaseCollectionName.value as string,
+	);
 
 	try {
 		return cluster
@@ -137,7 +145,7 @@ export class Couchbase implements INodeType {
 		const operation = this.getNodeParameter('operation', 0);
 
 		const { cluster } = await connectToCouchbase(this);
-		const collection = getCollection(this, cluster);
+		const collection = await getCollection(this, cluster);
 
 		const returnItems: INodeExecutionData[] = [];
 		let responseData: IDataObject | IDataObject[] = [];

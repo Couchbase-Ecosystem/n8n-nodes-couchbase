@@ -61,7 +61,7 @@ export async function validateBucketScopeCollection(
 		} catch (error) {
 			if (error instanceof BucketNotFoundError) {
 				throw new NodeOperationError(context.getNode(), `Bucket "${bucketName}" not found.`, {
-					description: 'Please censure the bucket exists in your Couchbase cluster.',
+					description: 'Please ensure the bucket exists in your Couchbase cluster.',
 				});
 			}
 			// Re-throw other errors that might have occurred

@@ -54,7 +54,7 @@ export async function populateCouchbaseScopeRL(this: ILoadOptionsFunctions) {
 		return { results: allScopes };
 	} catch (error) {
 		if (error instanceof BucketNotFoundError) {
-			throw new NodeOperationError(this.getNode(), `Please select a bucket.`);
+			throw new NodeOperationError(this.getNode(), `Please select a valid bucket.`);
 		}
 		throw new NodeOperationError(this.getNode(), `Error: ${error.message}`);
 	}
@@ -106,7 +106,7 @@ export async function populateCouchbaseCollectionRL(this: ILoadOptionsFunctions)
 		return { results: allCollections };
 	} catch (error) {
 		if (error instanceof BucketNotFoundError) {
-			throw new NodeOperationError(this.getNode(), `Please select a bucket and scope.`);
+			throw new NodeOperationError(this.getNode(), `Please select a valid bucket and scope.`);
 		}
 		throw new NodeOperationError(this.getNode(), `Error: ${error.message}`);
 	}

@@ -24,7 +24,7 @@ importers:
         specifier: ^0.3.19
         version: 0.3.19(@langchain/core@0.3.43(openai@4.91.0(encoding@0.1.13)(ws@8.18.1)(zod@3.24.2)))(axios@1.8.4)(encoding@0.1.13)(openai@4.91.0(encoding@0.1.13)(ws@8.18.1)(zod@3.24.2))(ws@8.18.1)
       n8n-workflow:
-        specifier: '*'
+        specifier: 1.85.0
         version: 1.85.0
       tmp-promise:
         specifier: ^3.0.3

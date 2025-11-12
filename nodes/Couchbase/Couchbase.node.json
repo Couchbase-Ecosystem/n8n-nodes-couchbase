@@ -1,6 +1,6 @@
 {
 	"node": "n8n-nodes-base.couchbase",
-	"nodeVersion": "1.1",
+	"nodeVersion": 2,
 	"codexVersion": "1.0",
 	"categories": ["Development", "Data & Storage"],
 	"resources": {

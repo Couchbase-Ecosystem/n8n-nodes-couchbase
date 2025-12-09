@@ -123,7 +123,7 @@ export class Couchbase implements INodeType {
 		name: 'couchbase',
 		icon: { light: 'file:../icons/couchbase.svg', dark: 'file:../icons/couchbase.dark.svg' },
 		group: ['input'],
-		version: [1.0, 1.1],
+		version: [1, 2],
 		subtitle: '={{$parameter["resource"] + ": " + $parameter["operation"]}}',
 		description:
 			'Couchbase node to insert, update, retrieve, and delete data from a Couchbase database using KV, Query and Search services',

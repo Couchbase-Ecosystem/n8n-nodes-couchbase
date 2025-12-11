@@ -14,6 +14,7 @@
 			"es2022.error",
 			"dom"
 		],
+		"types": ["node", "vitest/globals"],
 		"removeComments": true,
 		"useUnknownInCatchVariables": false,
 		"forceConsistentCasingInFileNames": true,
@@ -35,5 +36,11 @@
 		"nodes/**/*",
 		"nodes/**/*.json",
 		"package.json",
+		"utils/**/*",
+		"tests/**/*"
 	],
+	"exclude": [
+		"node_modules",
+		"dist"
+	]
 }

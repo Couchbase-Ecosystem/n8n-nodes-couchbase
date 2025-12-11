@@ -23,6 +23,20 @@ import { logAiEvent, isToolsInstance, isBaseChatMemory, isBaseChatMessageHistory
 import { N8nBinaryLoader } from './N8nBinaryLoader';
 import { N8nJsonLoader } from './N8nJsonLoader';
 
+/**
+ * Calls an async method on a LangChain instance with n8n error handling and logging.
+ * Wraps the method call to capture errors and add them to the n8n output data.
+ *
+ * @template T - The type of the instance containing the method
+ * @param parameters - Configuration for the method call
+ * @param parameters.executeFunctions - The n8n execution context
+ * @param parameters.connectionType - The type of node connection (e.g., AiMemory, AiVectorStore)
+ * @param parameters.currentNodeRunIndex - Current run index for output data
+ * @param parameters.method - The async method to execute
+ * @param parameters.arguments - Arguments to pass to the method
+ * @returns The result of the method call
+ * @throws NodeOperationError if the method throws an error
+ */
 export async function callMethodAsync<T>(
 	this: T,
 	parameters: {
@@ -65,6 +79,29 @@ export async function callMethodAsync<T>(
 	}
 }
 
+/**
+ * Creates a proxy wrapper around LangChain objects to add n8n logging and tracing.
+ *
+ * This function intercepts method calls on LangChain instances (Tool, Memory, Retriever,
+ * Embeddings, VectorStore, etc.) to:
+ * - Log AI events for analytics tracking
+ * - Record input/output data for n8n's execution flow
+ * - Handle errors and format them as NodeOperationError
+ *
+ * The proxy detects the type of LangChain object and wraps the appropriate methods
+ * for each type (e.g., `loadMemoryVariables` for Memory, `invoke` for Tools, etc.).
+ *
+ * @param originalInstance - The LangChain object to wrap (Tool, Memory, VectorStore, etc.)
+ * @param executeFunctions - The n8n execution context for logging and error handling
+ * @returns A proxied version of the original instance with logging/tracing enabled
+ *
+ * @example
+ * ```typescript
+ * const vectorStore = new CouchbaseVectorStore(...);
+ * const wrappedStore = logWrapper(vectorStore, executeFunctions);
+ * // Now calls to wrappedStore methods will be logged in n8n
+ * ```
+ */
 export function logWrapper(
 	originalInstance:
 		| Tool

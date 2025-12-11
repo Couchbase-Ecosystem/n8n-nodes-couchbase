@@ -4,6 +4,31 @@ import type { INodeExecutionData } from 'n8n-workflow';
 import { N8nBinaryLoader } from '@utils/N8nBinaryLoader';
 import { N8nJsonLoader } from '@utils/N8nJsonLoader';
 
+/**
+ * Type guard to check if input is a document loader (N8nJsonLoader or N8nBinaryLoader).
+ * Uses multiple checks to handle module resolution issues that can break instanceof.
+ */
+function isDocumentLoader(
+	input: unknown,
+): input is N8nJsonLoader | N8nBinaryLoader {
+	if (!input || typeof input !== 'object' || Array.isArray(input)) {
+		return false;
+	}
+
+	// Try instanceof first (works in most cases)
+	if (input instanceof N8nJsonLoader || input instanceof N8nBinaryLoader) {
+		return true;
+	}
+
+	// Fallback: check for the processItem method which is unique to loaders
+	// This handles cases where instanceof fails due to module resolution
+	if ('processItem' in input && typeof (input as { processItem: unknown }).processItem === 'function') {
+		return true;
+	}
+
+	return false;
+}
+
 export async function processDocument(
 	documentInput: N8nJsonLoader | N8nBinaryLoader | Array<Document<Record<string, unknown>>>,
 	inputItem: INodeExecutionData,
@@ -11,24 +36,11 @@ export async function processDocument(
 ) {
 	let processedDocuments: Document[];
 
-	// Use constructor.name as a workaround because instanceof fails due to module resolution issues.
-	// Check if documentInput is a non-array object and its constructor name matches.
-	if (
-		documentInput &&
-		typeof documentInput === 'object' &&
-		!Array.isArray(documentInput) && // Explicitly check it's not the array type
-		(documentInput.constructor?.name === 'N8nJsonLoader' ||
-			documentInput.constructor?.name === 'N8nBinaryLoader')
-	) {
-		// It's identified as a loader based on constructor name
-		// Cast needed because TS can't infer type from constructor.name check
-		processedDocuments = await (documentInput as N8nJsonLoader | N8nBinaryLoader).processItem(
-			inputItem,
-			itemIndex,
-		);
+	// Use type guard for robust loader detection
+	if (isDocumentLoader(documentInput)) {
+		processedDocuments = await documentInput.processItem(inputItem, itemIndex);
 	} else {
-		// Assume it's the array of documents if not identified as a loader
-		// Add type assertion for clarity, assuming the input type contract holds
+		// It's an array of documents
 		processedDocuments = documentInput as Array<Document<Record<string, unknown>>>;
 	}
 

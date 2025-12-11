@@ -43,12 +43,15 @@ export async function handleUpdateOperation<T extends VectorStore = VectorStore>
 			extractValue: true,
 		}) as string;
 
-		// Get the vector store client
-		const vectorStore = await args.getVectorStoreClient(context, undefined, embeddings, itemIndex);
+		// Declare vectorStore before try block to handle potential errors from getVectorStoreClient
+		let vectorStore: T | undefined;
 
 		try {
+			// Get the vector store client
+			vectorStore = await args.getVectorStoreClient(context, undefined, embeddings, itemIndex);
+
 			// Process the document from the input
-			let { processedDocuments, serializedDocuments } = await processDocument(
+			const { processedDocuments, serializedDocuments } = await processDocument(
 				loader,
 				itemData,
 				itemIndex,
@@ -70,8 +73,10 @@ export async function handleUpdateOperation<T extends VectorStore = VectorStore>
 			// Log the AI event for analytics
 			logAiEvent(context, 'ai-vector-store-updated');
 		} finally {
-			// Release the vector store client if a release method was provided
-			args.releaseVectorStoreClient?.(vectorStore);
+			// Release the vector store client if it was successfully created
+			if (vectorStore) {
+				args.releaseVectorStoreClient?.(vectorStore);
+			}
 		}
 	}
 

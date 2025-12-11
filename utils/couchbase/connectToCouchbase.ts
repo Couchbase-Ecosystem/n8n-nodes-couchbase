@@ -12,6 +12,10 @@ import {
 	UnambiguousTimeoutError,
 } from 'couchbase';
 
+// Connection configuration constants
+const CONNECTION_TIMEOUT_MS = 10000; // 10 seconds
+const CONNECTION_IDLE_TIMEOUT_MS = 30000; // 30 seconds - auto-close after inactivity
+
 // Declare clusterInstance and credentials cache outside the function scope
 let clusterInstance: Cluster | undefined;
 let cachedCredentials: {
@@ -19,6 +23,59 @@ let cachedCredentials: {
 	username?: string;
 	password?: string;
 } = {};
+let idleTimeoutId: ReturnType<typeof setTimeout> | undefined;
+let lastActivityTime: number = 0;
+
+/**
+ * Resets the idle timeout timer. Called on each connection activity.
+ */
+function resetIdleTimeout(): void {
+	if (idleTimeoutId) {
+		clearTimeout(idleTimeoutId);
+	}
+	lastActivityTime = Date.now();
+	idleTimeoutId = setTimeout(async () => {
+		await closeConnection();
+	}, CONNECTION_IDLE_TIMEOUT_MS);
+}
+
+/**
+ * Closes the current Couchbase connection and clears cached state.
+ * Can be called manually or automatically via idle timeout.
+ */
+export async function closeConnection(): Promise<void> {
+	if (idleTimeoutId) {
+		clearTimeout(idleTimeoutId);
+		idleTimeoutId = undefined;
+	}
+	if (clusterInstance) {
+		try {
+			await clusterInstance.close();
+		} catch {
+			// Ignore errors during close - connection may already be closed
+		} finally {
+			clusterInstance = undefined;
+			cachedCredentials = {};
+			lastActivityTime = 0;
+		}
+	}
+}
+
+/**
+ * Gets the time since last connection activity in milliseconds.
+ * Returns 0 if no connection has been established.
+ */
+export function getConnectionIdleTime(): number {
+	if (lastActivityTime === 0) return 0;
+	return Date.now() - lastActivityTime;
+}
+
+/**
+ * Checks if there is an active connection.
+ */
+export function hasActiveConnection(): boolean {
+	return clusterInstance !== undefined;
+}
 
 /**
  * Connects to Couchbase using the provided credentials.
@@ -67,7 +124,7 @@ export async function connectToCouchbase(
 				username: username,
 				password: password,
 				timeouts: {
-					connectTimeout: 10000, // 10 seconds
+					connectTimeout: CONNECTION_TIMEOUT_MS,
 				},
 			});
 
@@ -86,7 +143,7 @@ export async function connectToCouchbase(
 
 			throw new NodeOperationError(
 				context.getNode(),
-				`Could not connect to database: ${error.message}.`,
+				`Could not connect to database: ${(error as Error).message}.`,
 				{
 					description: makeConnectionErrorDescription(error as CouchbaseError),
 				},
@@ -94,9 +151,12 @@ export async function connectToCouchbase(
 		}
 	}
 
-		if (!clusterInstance) {
-			throw new Error('Cluster connection is not available.');
-		}
+	if (!clusterInstance) {
+		throw new Error('Cluster connection is not available.');
+	}
+
+	// Reset idle timeout on each successful connection use
+	resetIdleTimeout();
 
 	return { cluster: clusterInstance };
 }

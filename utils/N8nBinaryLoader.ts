@@ -91,11 +91,13 @@ export class N8nBinaryLoader {
 			const binaryBuffer = await this.context.helpers.binaryToBuffer(
 				await this.context.helpers.getBinaryStream(binaryData.id),
 			);
-			return new Blob([binaryBuffer], {
+			// Convert Buffer to Uint8Array for Blob compatibility
+			return new Blob([new Uint8Array(binaryBuffer)], {
 				type: mimeType,
 			});
 		} else {
-			return new Blob([Buffer.from(binaryData.data, BINARY_ENCODING)], {
+			const buffer = Buffer.from(binaryData.data, BINARY_ENCODING);
+			return new Blob([new Uint8Array(buffer)], {
 				type: mimeType,
 			});
 		}
@@ -105,7 +107,10 @@ export class N8nBinaryLoader {
 		mimeType: string,
 		filePathOrBlob: string | Blob,
 		itemIndex: number,
-	): Promise<PDFLoader | CSVLoader | EPubLoader | DocxLoader | TextLoader | JSONLoader> {
+	): Promise<{
+		loader: PDFLoader | CSVLoader | EPubLoader | DocxLoader | TextLoader | JSONLoader;
+		cleanup?: DirectoryResult['cleanup'];
+	}> {
 		switch (mimeType) {
 			case 'application/pdf':
 				const splitPages = this.context.getNodeParameter(
@@ -113,7 +118,7 @@ export class N8nBinaryLoader {
 					itemIndex,
 					false,
 				) as boolean;
-				return new PDFLoader(filePathOrBlob, { splitPages });
+				return { loader: new PDFLoader(filePathOrBlob, { splitPages }) };
 			case 'text/csv':
 				const column = this.context.getNodeParameter(
 					`${this.optionsPrefix}column`,
@@ -125,23 +130,20 @@ export class N8nBinaryLoader {
 					itemIndex,
 					',',
 				) as string;
-				return new CSVLoader(filePathOrBlob, { column: column ?? undefined, separator });
+				return { loader: new CSVLoader(filePathOrBlob, { column: column ?? undefined, separator }) };
 			case 'application/epub+zip':
 				// EPubLoader currently does not accept Blobs https://github.com/langchain-ai/langchainjs/issues/1623
-				let filePath: string;
 				if (filePathOrBlob instanceof Blob) {
 					const tmpFileData = await tmpFile({ prefix: 'epub-loader-' });
 					const bufferData = await filePathOrBlob.arrayBuffer();
 					await pipeline([new Uint8Array(bufferData)], createWriteStream(tmpFileData.path));
-					return new EPubLoader(tmpFileData.path);
-				} else {
-					filePath = filePathOrBlob;
+					return { loader: new EPubLoader(tmpFileData.path), cleanup: tmpFileData.cleanup };
 				}
-				return new EPubLoader(filePath);
+				return { loader: new EPubLoader(filePathOrBlob) };
 			case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
-				return new DocxLoader(filePathOrBlob);
+				return { loader: new DocxLoader(filePathOrBlob) };
 			case 'text/plain':
-				return new TextLoader(filePathOrBlob);
+				return { loader: new TextLoader(filePathOrBlob) };
 			case 'application/json':
 				const pointers = this.context.getNodeParameter(
 					`${this.optionsPrefix}pointers`,
@@ -149,9 +151,9 @@ export class N8nBinaryLoader {
 					'',
 				) as string;
 				const pointersArray = pointers.split(',').map((pointer) => pointer.trim());
-				return new JSONLoader(filePathOrBlob, pointersArray);
+				return { loader: new JSONLoader(filePathOrBlob, pointersArray) };
 			default:
-				return new TextLoader(filePathOrBlob);
+				return { loader: new TextLoader(filePathOrBlob) };
 		}
 	}
 
@@ -217,23 +219,25 @@ export class N8nBinaryLoader {
 		await this.validateMimeType(mimeType, selectedLoader);
 
 		const filePathOrBlob = await this.getFilePathOrBlob(binaryData, mimeType);
-		const cleanupTmpFile: DirectoryResult['cleanup'] | undefined = undefined;
-		const loader = await this.getLoader(mimeType, filePathOrBlob, itemIndex);
-		const loadedDoc = await this.loadDocuments(loader);
+		const { loader, cleanup: cleanupTmpFile } = await this.getLoader(mimeType, filePathOrBlob, itemIndex);
 
-		docs.push(...loadedDoc);
+		try {
+			const loadedDoc = await this.loadDocuments(loader);
 
-		if (metadata) {
-			docs.forEach((document) => {
-				document.metadata = {
-					...document.metadata,
-					...metadata,
-				};
-			});
+			docs.push(...loadedDoc);
+
+			if (metadata) {
+				docs.forEach((document) => {
+					document.metadata = {
+						...document.metadata,
+						...metadata,
+					};
+				});
+			}
+
+			return docs;
+		} finally {
+			await this.cleanupTmpFileIfNeeded(cleanupTmpFile);
 		}
-
-		await this.cleanupTmpFileIfNeeded(cleanupTmpFile);
-
-		return docs;
 	}
 }

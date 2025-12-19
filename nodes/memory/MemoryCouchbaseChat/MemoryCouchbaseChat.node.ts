@@ -25,7 +25,11 @@ import {
 	expressionSessionKeyProperty,
 	contextWindowLengthProperty,
 } from './descriptions';
-import {couchbaseBucketRL, couchbaseCollectionRL, couchbaseScopeRL} from './MemoryCouchbaseProperties';
+import {
+	couchbaseBucketRL,
+	couchbaseCollectionRL,
+	couchbaseScopeRL,
+} from './MemoryCouchbaseProperties';
 
 export class MemoryCouchbaseChat implements INodeType {
 	description: INodeTypeDescription = {

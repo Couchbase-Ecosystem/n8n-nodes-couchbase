@@ -91,4 +91,3 @@ export class CouchbaseChatMessageHistory extends BaseListChatMessageHistory {
 		}
 	}
 }
-

@@ -3,7 +3,6 @@ import type {
 	ISupplyDataFunctions,
 	INodeType,
 	INodeTypeDescription,
-	INodeProperties,
 	SupplyData,
 } from 'n8n-workflow';
 import { NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
@@ -26,84 +25,7 @@ import {
 	expressionSessionKeyProperty,
 	contextWindowLengthProperty,
 } from './descriptions';
-
-const couchbaseBucketRL: INodeProperties = {
-	displayName: 'Couchbase Bucket',
-	name: 'couchbaseBucket',
-	type: 'resourceLocator',
-	default: { mode: 'list', value: '' },
-	required: true,
-	modes: [
-		{
-			displayName: 'From List',
-			name: 'list',
-			type: 'list',
-			typeOptions: {
-				searchListMethod: 'populateCouchbaseBucketRL',
-			},
-		},
-		{
-			displayName: 'Name',
-			name: 'name',
-			type: 'string',
-			placeholder: 'e.g. n8n_memory',
-		},
-	],
-};
-
-const couchbaseScopeRL: INodeProperties = {
-	displayName: 'Couchbase Scope',
-	name: 'couchbaseScope',
-	type: 'resourceLocator',
-	default: { mode: 'list', value: '' },
-	required: true,
-	typeOptions: {
-		loadOptionsDependsOn: ['couchbaseBucket.value'],
-	},
-	modes: [
-		{
-			displayName: 'From List',
-			name: 'list',
-			type: 'list',
-			typeOptions: {
-				searchListMethod: 'populateCouchbaseScopeRL',
-			},
-		},
-		{
-			displayName: 'Name',
-			name: 'name',
-			type: 'string',
-			placeholder: 'e.g. my_scope',
-		},
-	],
-};
-
-const couchbaseCollectionRL: INodeProperties = {
-	displayName: 'Couchbase Collection',
-	name: 'couchbaseCollection',
-	type: 'resourceLocator',
-	default: { mode: 'list', value: '' },
-	required: true,
-	typeOptions: {
-		loadOptionsDependsOn: ['couchbaseBucket.value', 'couchbaseScope.value'],
-	},
-	modes: [
-		{
-			displayName: 'From List',
-			name: 'list',
-			type: 'list',
-			typeOptions: {
-				searchListMethod: 'populateCouchbaseCollectionRL',
-			},
-		},
-		{
-			displayName: 'Name',
-			name: 'name',
-			type: 'string',
-			placeholder: 'e.g. _default',
-		},
-	],
-};
+import {couchbaseBucketRL, couchbaseCollectionRL, couchbaseScopeRL} from './MemoryCouchbaseProperties';
 
 export class MemoryCouchbaseChat implements INodeType {
 	description: INodeTypeDescription = {

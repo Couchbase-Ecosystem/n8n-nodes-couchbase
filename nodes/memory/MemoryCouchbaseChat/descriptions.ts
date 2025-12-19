@@ -42,6 +42,7 @@ export const sessionKeyProperty: INodeProperties = {
 	displayName: 'Key',
 	name: 'sessionKey',
 	type: 'string',
+	required: true,
 	default: '',
 	description: 'The key to use to store session ID in the memory',
 	displayOptions: {

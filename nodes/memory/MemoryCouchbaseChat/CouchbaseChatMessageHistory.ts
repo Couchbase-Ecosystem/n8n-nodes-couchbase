@@ -71,11 +71,9 @@ export class CouchbaseChatMessageHistory extends BaseListChatMessageHistory {
 			if (error.name === 'DocumentNotFoundError') {
 				// If the document doesn't exist, create it.
 				// This fallback is necessary for the first message in a session.
-				const existingMessages = await this.getMessages(); // Should be empty
-				const allMessages = [...existingMessages, ...messages];
 				await this.collection.upsert(this.documentKey, {
 					sessionId: this.sessionId,
-					messages: mapChatMessagesToStoredMessages(allMessages),
+					messages: storedMessages,
 					updatedAt: new Date().toISOString(),
 				});
 			} else {

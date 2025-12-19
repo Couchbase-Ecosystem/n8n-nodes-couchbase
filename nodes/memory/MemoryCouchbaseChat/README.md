@@ -2,7 +2,7 @@
 
 The Couchbase Chat Memory node is an n8n community node contained within the `n8n-nodes-couchbase` package. It lets you store and manage chat conversation history in Couchbase for use with AI workflows in n8n.
 
-Couchbase Chat Memory provides persistent storage for conversational AI applications, allowing agents and chains to maintain context across multiple interactions by storing message history in a Couchbase collection.
+Couchbase Chat Memory provides persistent storage for conversational AI applications, allowing agents and chains to maintain context across multiple interactions by storing message history in a Couchbase database.
 
 [Installation](#installation)  
 [Functionality](#functionality)  

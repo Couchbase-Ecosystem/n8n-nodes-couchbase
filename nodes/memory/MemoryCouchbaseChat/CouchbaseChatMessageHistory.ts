@@ -6,6 +6,7 @@ import {
 	StoredMessage,
 } from '@langchain/core/messages';
 import type { Collection } from 'couchbase';
+import { MutateInSpec } from 'couchbase';
 
 export interface CouchbaseChatMessageHistoryInput {
 	collection: Collection;
@@ -51,30 +52,37 @@ export class CouchbaseChatMessageHistory extends BaseListChatMessageHistory {
 	 * Adds a new message to the session's chat history.
 	 */
 	async addMessage(message: BaseMessage): Promise<void> {
-		const messages = await this.getMessages();
-		messages.push(message);
-		const storedMessages = mapChatMessagesToStoredMessages(messages);
-
-		await this.collection.upsert(this.documentKey, {
-			sessionId: this.sessionId,
-			messages: storedMessages,
-			updatedAt: new Date().toISOString(),
-		});
+		await this.addMessages([message]);
 	}
 
 	/**
 	 * Adds multiple messages to the session's chat history.
 	 */
 	async addMessages(messages: BaseMessage[]): Promise<void> {
-		const existingMessages = await this.getMessages();
-		const allMessages = [...existingMessages, ...messages];
-		const storedMessages = mapChatMessagesToStoredMessages(allMessages);
+		const storedMessages = mapChatMessagesToStoredMessages(messages);
 
-		await this.collection.upsert(this.documentKey, {
-			sessionId: this.sessionId,
-			messages: storedMessages,
-			updatedAt: new Date().toISOString(),
-		});
+		try {
+			// Atomically append new messages. This is efficient for existing documents.
+			await this.collection.mutateIn(this.documentKey, [
+				MutateInSpec.arrayAppend('messages', storedMessages, { multi: true }),
+				MutateInSpec.upsert('updatedAt', new Date().toISOString()),
+			]);
+		} catch (error: any) {
+			if (error.name === 'DocumentNotFoundError') {
+				// If the document doesn't exist, create it.
+				// This fallback is necessary for the first message in a session.
+				const existingMessages = await this.getMessages(); // Should be empty
+				const allMessages = [...existingMessages, ...messages];
+				await this.collection.upsert(this.documentKey, {
+					sessionId: this.sessionId,
+					messages: mapChatMessagesToStoredMessages(allMessages),
+					updatedAt: new Date().toISOString(),
+				});
+			} else {
+				// Re-throw other errors.
+				throw error;
+			}
+		}
 	}
 
 	/**

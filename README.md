@@ -15,6 +15,7 @@ Couchbase is a distributed NoSQL cloud database that offers the robustness of a 
 Click on the node name to view its detailed documentation.
 - [**Couchbase**](nodes/Couchbase/README.md): This node allows you to perform operations on The Couchbase KV, Query, and Search services. It supports creating, reading, updating, and deleting documents, as well as executing SQL++ queries and full-text searches.
 - [**Couchbase Search Vector Store**](nodes/vector_store/VectorStoreCouchbaseSearch/README.md): This node allows you to perform vector search operations using the Couchbase Search Service. It supports retrieving, updating, and inserting documents in a vector database, as well as using the vector store as a tool for AI agents.
+- [**Couchbase Chat Memory**](nodes/memory/MemoryCouchbaseChat/README.md): This node provides persistent storage for conversational AI applications by storing chat conversation history in a Couchbase database. It enables AI agents and chains to maintain context across multiple interactions.
 
 ## Installation
 
@@ -36,5 +37,5 @@ To use the Couchbase node, you'll need to set up Couchbase credentials in n8n:
 
 ## Compatibility
 
-This node has been tested with n8n version 1.86.0.
+This node has been tested with n8n version 1.123.4.
 

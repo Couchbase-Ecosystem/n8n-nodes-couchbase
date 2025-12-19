@@ -148,7 +148,7 @@ export async function handleLoadOperation<T extends VectorStore>(
 	itemIndex: number,
 ): Promise<INodeExecutionData[]>;
 
-// Example: insertOperation.ts (v1.1+)
+// Example: insertOperation.ts (v2+)
 export async function handleInsertOperation<T extends VectorStore>(
 	context: IExecuteFunctions,
 	args: VectorStoreNodeConstructorArgs<T>,
@@ -212,7 +212,7 @@ const vectorStoreTool = new DynamicTool({
 
 1. **Resource Management**: Each operation properly handles resource cleanup with `releaseVectorStoreClient`.
 
-2. **Batched Processing**: The `insert` operation processes documents in configurable batches. In node version 1.1+, a single embedding operation is performed for all documents in a batch, significantly improving performance by reducing API calls.
+2. **Batched Processing**: The `insert` operation processes documents in configurable batches. In node version 2+, a single embedding operation is performed for all documents in a batch, significantly improving performance by reducing API calls.
 
 3. **Metadata Filtering**: Filters can be applied during search operations to reduce result sets.
 

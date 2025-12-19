@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-couchbase",
-  "version": "1.1.4",
+  "version": "1.2.0",
   "description": "Community nodes for using Couchbase Key-Value, Query, Full-Text Search, and Couchbase Search Vector Store with n8n.",
   "keywords": [
     "n8n-community-node-package"
@@ -41,30 +41,31 @@
     ],
     "nodes": [
       "dist/nodes/Couchbase/Couchbase.node.js",
-      "dist/nodes/vector_store/VectorStoreCouchbaseSearch/VectorStoreCouchbaseSearch.node.js"
+      "dist/nodes/vector_store/VectorStoreCouchbaseSearch/VectorStoreCouchbaseSearch.node.js",
+      "dist/nodes/memory/MemoryCouchbaseChat/MemoryCouchbaseChat.node.js"
     ]
   },
   "devDependencies": {
     "@types/node": "^22.13.5",
     "@typescript-eslint/parser": "^7.15.0",
-    "eslint": "^8.56.0",
-    "eslint-plugin-n8n-nodes-base": "^1.16.1",
+    "eslint": "^8.57.0",
+    "eslint-plugin-n8n-nodes-base": "^1.16.4",
     "gulp": "^4.0.2",
     "nodemon": "^3.1.9",
     "prettier": "^3.3.2",
     "sqlite3": "^5.1.7",
-    "tsc-alias": "^1.8.13",
+    "tsc-alias": "^1.8.15",
     "typescript": "^5.5.3"
   },
   "peerDependencies": {
-    "n8n-workflow": "^1.85.0"
+    "n8n-workflow": "^1.120.1"
   },
   "dependencies": {
     "@langchain/community": "^0.3.38",
     "@langchain/core": "^0.3.43",
     "@langchain/textsplitters": "^0.1.0",
-    "langchain": "^0.3.19",
     "couchbase": "^4.4.5",
+    "langchain": "^0.3.19",
     "tmp-promise": "^3.0.3",
     "uuid": "^11.1.0",
     "zod": "^3.24.2"

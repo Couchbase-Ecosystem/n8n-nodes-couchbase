@@ -51,13 +51,8 @@ export async function handleRetrieveAsToolExecuteOperation<T extends VectorStore
 
 		// Format the documents for the tool output - matching the format expected by AI Agent
 		const serializedDocs = docs.map(([doc]) => {
-			if (includeDocumentMetadata) {
-				return { type: 'text', text: JSON.stringify(doc) };
-			}
-			return {
-				type: 'text',
-				text: JSON.stringify({ pageContent: doc.pageContent }),
-			};
+			const content = includeDocumentMetadata ? doc : { pageContent: doc.pageContent };
+			return { type: 'text', text: JSON.stringify(content) };
 		});
 
 		// Log the AI event for analytics

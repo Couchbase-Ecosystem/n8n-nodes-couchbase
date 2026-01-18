@@ -263,14 +263,11 @@ export const createVectorStoreNode = <T extends VectorStore = VectorStore>(
 
 			if (mode === 'retrieve-as-tool') {
 				const items = this.getInputData(0);
-				const resultData = [];
-
-				for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
-					const docs = await handleRetrieveAsToolExecuteOperation(this, args, embeddings, itemIndex);
-					resultData.push(...docs);
-				}
-
-				return [resultData];
+				const promises = items.map((_, itemIndex) =>
+					handleRetrieveAsToolExecuteOperation(this, args, embeddings, itemIndex),
+				);
+				const results = await Promise.all(promises);
+				return [results.flat()];
 			}
 
 			throw new NodeOperationError(

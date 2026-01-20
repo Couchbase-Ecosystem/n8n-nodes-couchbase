@@ -161,6 +161,22 @@ const textField: INodeProperties = {
 	required: true,
 };
 
+const messageQueryKey: INodeProperties = {
+	displayName: 'Incoming Message Query Key',
+	name: 'messageQueryKey',
+	type: 'string',
+	placeholder: 'e.g. chatInput',
+	default: 'chatInput',
+	description:
+		'The key for the incoming message query input from the previous node. Defaults to "chatInput".',
+	required: true,
+	displayOptions: {
+		show: {
+			mode: ['retrieve-as-tool'],
+		},
+	},
+};
+
 const sharedFields: INodeProperties[] = [
 	couchbaseBucketRL,
 	couchbaseScopeRL,
@@ -169,6 +185,7 @@ const sharedFields: INodeProperties[] = [
 	vectorIndexRL,
 	embeddingField,
 	textField,
+	messageQueryKey,
 ];
 
 const retrieveFields: INodeProperties[] = [

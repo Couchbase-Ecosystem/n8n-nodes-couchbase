@@ -36,7 +36,7 @@ export async function handleRetrieveAsToolExecuteOperation<T extends VectorStore
 		const query = typeof item.json[queryKey] === 'string' ? item.json[queryKey] : undefined;
 
 		if (!query || typeof query !== 'string') {
-			throw new Error('Input data must contain a "input" field with the search query');
+			throw new Error(`Input data must contain a "${queryKey}" field with the search query`);
 		}
 
 		const topK = context.getNodeParameter('topK', itemIndex, 4);

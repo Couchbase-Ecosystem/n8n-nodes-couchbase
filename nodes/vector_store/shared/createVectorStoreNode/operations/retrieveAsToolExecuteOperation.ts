@@ -1,17 +1,12 @@
 import type { Embeddings } from '@langchain/core/embeddings';
 import type { BaseDocumentCompressor } from '@langchain/core/retrievers/document_compressors';
 import type { VectorStore } from '@langchain/core/vectorstores';
-import {
-	assertParamIsBoolean,
-	assertParamIsNumber,
-	NodeConnectionTypes,
-	type IExecuteFunctions,
-	type INodeExecutionData,
-} from 'n8n-workflow';
+import { NodeConnectionTypes, type IExecuteFunctions, type INodeExecutionData } from 'n8n-workflow';
 
 import { getMetadataFiltersValues, logAiEvent } from '@utils/helpers';
 
 import type { VectorStoreNodeConstructorArgs } from '../types';
+import { assertParamIsBoolean, assertParamIsNumber } from '../parameterValidation';
 
 /**
  * Handles the 'retrieve-as-tool' operation mode in execute context

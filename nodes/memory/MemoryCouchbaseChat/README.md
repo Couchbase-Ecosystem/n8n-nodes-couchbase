@@ -31,7 +31,6 @@ The Couchbase Chat Memory node operates as a memory provider for AI agents and c
 To use the Couchbase Chat Memory node, you'll need to set up Couchbase credentials in n8n:
 
 1. **Prerequisites**:
-
    - A running Couchbase cluster (using [Couchbase Capella](https://cloud.couchbase.com/) in the cloud, or Couchbase Server)
    - [Database credentials](https://docs.couchbase.com/cloud/clusters/manage-database-users.html#create-database-credentials) with appropriate permissions for the operations you want to perform
    - [Allow IP address](https://docs.couchbase.com/cloud/clusters/allow-ip-address.html) for your n8n instance

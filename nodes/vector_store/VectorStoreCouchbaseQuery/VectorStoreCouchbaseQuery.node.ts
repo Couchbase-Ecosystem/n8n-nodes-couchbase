@@ -1,7 +1,8 @@
 import {
-	CouchbaseSearchVectorStore,
-	CouchbaseSearchVectorStoreArgs,
-} from '@langchain/community/vectorstores/couchbase_search';
+	CouchbaseQueryVectorStore,
+	CouchbaseQueryVectorStoreArgs,
+	DistanceStrategy,
+} from '@langchain/community/vectorstores/couchbase_query';
 import {
 	IDataObject,
 	IExecuteFunctions,
@@ -17,7 +18,6 @@ import {
 	populateCouchbaseBucketRL,
 	populateCouchbaseCollectionRL,
 	populateCouchbaseScopeRL,
-	populateCouchbaseSearchIndexesRL,
 } from '@utils/couchbase/populateCouchbaseRLs';
 import { connectToCouchbase } from '@utils/couchbase/connectToCouchbase';
 import { validateBucketScopeCollection } from '@utils/couchbase/validateBucketScopeCollection';
@@ -99,44 +99,33 @@ const couchbaseCollectionRL: INodeProperties = {
 		},
 	],
 };
-
-const useScopedIndex: INodeProperties = {
-	displayName: 'Use Scoped Index',
-	name: 'useScopedIndex',
-	type: 'boolean',
-	default: true,
-	description: 'Whether to use a scoped search index or a global one',
-};
-
-const vectorIndexRL: INodeProperties = {
-	displayName: 'Vector Index Name',
-	name: 'vectorIndexName',
-	type: 'resourceLocator',
-	default: { mode: 'list', value: '' },
-	required: true,
-	description: 'The name of the vector index',
-	typeOptions: {
-		loadOptionsDependsOn: [
-			'useScopedIndex',
-			'couchbaseBucket.value',
-			'couchbaseScope.value',
-			'couchbaseCollection.value',
-		],
-	},
-	modes: [
+// todo: can we output the ID after insert op?
+const distanceStrategyField: INodeProperties = {
+	displayName: 'Distance Strategy',
+	name: 'distanceStrategy',
+	type: 'options',
+	default: 'dot',
+	description: 'The distance metric used for vector similarity search',
+	options: [
 		{
-			displayName: 'From List',
-			name: 'list',
-			type: 'list',
-			typeOptions: {
-				searchListMethod: 'populateCouchbaseSearchIndexesRL',
-			},
+			name: 'Dot Product',
+			value: 'dot',
+			description: 'Dot product similarity (default)',
 		},
 		{
-			displayName: 'Name',
-			name: 'name',
-			type: 'string',
-			placeholder: 'e.g. my_index',
+			name: 'Euclidean',
+			value: 'euclidean',
+			description: 'Euclidean distance',
+		},
+		{
+			name: 'Euclidean Squared',
+			value: 'euclidean_squared',
+			description: 'Euclidean distance squared',
+		},
+		{
+			name: 'Cosine',
+			value: 'cosine',
+			description: 'Cosine similarity',
 		},
 	],
 };
@@ -165,8 +154,7 @@ const sharedFields: INodeProperties[] = [
 	couchbaseBucketRL,
 	couchbaseScopeRL,
 	couchbaseCollectionRL,
-	useScopedIndex,
-	vectorIndexRL,
+	distanceStrategyField,
 	embeddingField,
 	textField,
 ];
@@ -226,10 +214,28 @@ const insertFields: INodeProperties[] = [
 ];
 
 /**
- * Get common parameters for Couchbase Vector Store
+ * Map string value to DistanceStrategy enum
+ */
+function mapDistanceStrategy(value: string): DistanceStrategy {
+	switch (value) {
+		case 'dot':
+			return DistanceStrategy.DOT;
+		case 'cosine':
+			return DistanceStrategy.COSINE;
+		case 'euclidean':
+			return DistanceStrategy.EUCLIDEAN;
+		case 'euclidean_squared':
+			return DistanceStrategy.EUCLIDEAN_SQUARED;
+		default:
+			return DistanceStrategy.DOT;
+	}
+}
+
+/**
+ * Get common parameters for Couchbase Query Vector Store
  * @param context
  * @param itemIndex
- * @returns {couchbaseBucketName: string, couchbaseScopeName: string, couchbaseCollectionName: string, isUseScopedIndex: boolean, couchbaseVectorIndexName: string, embeddingFieldName: string, textFieldName: string}
+ * @returns Common node parameters
  */
 function getCommonNodeParameters(
 	context: IExecuteFunctions | ISupplyDataFunctions,
@@ -238,8 +244,7 @@ function getCommonNodeParameters(
 	couchbaseBucketName: string;
 	couchbaseScopeName: string;
 	couchbaseCollectionName: string;
-	isUseScopedIndex: boolean;
-	couchbaseVectorIndexName: string;
+	distanceStrategy: DistanceStrategy;
 	embeddingFieldName: string;
 	textFieldName: string;
 } {
@@ -255,11 +260,12 @@ function getCommonNodeParameters(
 		extractValue: true,
 	}) as string;
 
-	const isUseScopedIndex = context.getNodeParameter('useScopedIndex', itemIndex, '') as boolean;
-
-	const couchbaseVectorIndexName = context.getNodeParameter('vectorIndexName', itemIndex, '', {
-		extractValue: true,
-	}) as string;
+	const distanceStrategyValue = context.getNodeParameter(
+		'distanceStrategy',
+		itemIndex,
+		'dot',
+	) as string;
+	const distanceStrategy = mapDistanceStrategy(distanceStrategyValue);
 
 	const embeddingFieldName = context.getNodeParameter('embedding', itemIndex, '', {
 		extractValue: true,
@@ -268,29 +274,29 @@ function getCommonNodeParameters(
 	const textFieldName = context.getNodeParameter('textFieldKey', itemIndex, '', {
 		extractValue: true,
 	}) as string;
+
 	return {
 		couchbaseBucketName,
 		couchbaseScopeName,
 		couchbaseCollectionName,
-		isUseScopedIndex,
-		couchbaseVectorIndexName,
+		distanceStrategy,
 		embeddingFieldName,
 		textFieldName,
 	};
 }
 
-export class VectorStoreCouchbaseSearch extends createVectorStoreNode<CouchbaseSearchVectorStore>({
+export class VectorStoreCouchbaseQuery extends createVectorStoreNode<CouchbaseQueryVectorStore>({
 	meta: {
-		displayName: 'Couchbase Search Vector Store',
-		name: 'vectorStoreCouchbaseSearch',
+		displayName: 'Couchbase Query Vector Store',
+		name: 'vectorStoreCouchbaseQuery',
 		description:
-			'Work with your data using the Couchbase Search Vector Store. This node conducts vector retrievals using the Search service.',
+			'Work with your data using the Couchbase Query Vector Store. This node conducts vector retrievals using the Query service with SQL++ vector indexes.',
 		icon: {
 			light: 'file:../../icons/couchbase.svg',
 			dark: 'file:../../icons/couchbase.dark.svg',
 		},
 		docsUrl:
-			'https://github.com/Couchbase-Ecosystem/n8n-nodes-couchbase/blob/master/nodes/vector_store/VectorStoreCouchbaseSearch/README.md',
+			'https://github.com/Couchbase-Ecosystem/n8n-nodes-couchbase/blob/master/nodes/vector_store/VectorStoreCouchbaseQuery/README.md',
 		credentials: [
 			{
 				name: 'couchbaseApi',
@@ -304,7 +310,6 @@ export class VectorStoreCouchbaseSearch extends createVectorStoreNode<CouchbaseS
 			populateCouchbaseBucketRL,
 			populateCouchbaseScopeRL,
 			populateCouchbaseCollectionRL,
-			populateCouchbaseSearchIndexesRL,
 		},
 	},
 	retrieveFields,
@@ -317,8 +322,7 @@ export class VectorStoreCouchbaseSearch extends createVectorStoreNode<CouchbaseS
 				couchbaseBucketName,
 				couchbaseScopeName,
 				couchbaseCollectionName,
-				isUseScopedIndex,
-				couchbaseVectorIndexName,
+				distanceStrategy,
 				embeddingFieldName,
 				textFieldName,
 			} = getCommonNodeParameters(context, itemIndex);
@@ -331,18 +335,17 @@ export class VectorStoreCouchbaseSearch extends createVectorStoreNode<CouchbaseS
 				couchbaseCollectionName,
 			);
 
-			const couchbaseConfig: CouchbaseSearchVectorStoreArgs = {
+			const couchbaseConfig: CouchbaseQueryVectorStoreArgs = {
 				cluster,
 				bucketName: couchbaseBucketName,
 				scopeName: couchbaseScopeName,
 				collectionName: couchbaseCollectionName,
-				indexName: couchbaseVectorIndexName,
 				textKey: textFieldName,
 				embeddingKey: embeddingFieldName,
-				scopedIndex: isUseScopedIndex,
+				distanceStrategy,
 			};
 
-			return CouchbaseSearchVectorStore.initialize(embeddings, couchbaseConfig);
+			return CouchbaseQueryVectorStore.initialize(embeddings, couchbaseConfig);
 		} catch (error) {
 			if (!(error instanceof NodeOperationError)) {
 				throw new NodeOperationError(context.getNode(), `Error: ${error.message}`);
@@ -356,8 +359,7 @@ export class VectorStoreCouchbaseSearch extends createVectorStoreNode<CouchbaseS
 				couchbaseBucketName,
 				couchbaseScopeName,
 				couchbaseCollectionName,
-				isUseScopedIndex,
-				couchbaseVectorIndexName,
+				distanceStrategy,
 				embeddingFieldName,
 				textFieldName,
 			} = getCommonNodeParameters(context, itemIndex);
@@ -370,15 +372,14 @@ export class VectorStoreCouchbaseSearch extends createVectorStoreNode<CouchbaseS
 				couchbaseCollectionName,
 			);
 
-			const couchbaseConfig: CouchbaseSearchVectorStoreArgs = {
+			const couchbaseConfig: CouchbaseQueryVectorStoreArgs = {
 				cluster,
 				bucketName: couchbaseBucketName,
 				scopeName: couchbaseScopeName,
 				collectionName: couchbaseCollectionName,
-				indexName: couchbaseVectorIndexName,
 				textKey: textFieldName,
 				embeddingKey: embeddingFieldName,
-				scopedIndex: isUseScopedIndex,
+				distanceStrategy,
 			};
 
 			const options = context.getNodeParameter('options', itemIndex, {}) as IDataObject;
@@ -409,7 +410,7 @@ export class VectorStoreCouchbaseSearch extends createVectorStoreNode<CouchbaseS
 				}
 			}
 
-			await CouchbaseSearchVectorStore.fromDocuments(documents, embeddings, couchbaseConfig);
+			await CouchbaseQueryVectorStore.fromDocuments(documents, embeddings, couchbaseConfig);
 		} catch (error) {
 			if (!(error instanceof NodeOperationError)) {
 				throw new NodeOperationError(context.getNode(), `Error: ${error.message}`);

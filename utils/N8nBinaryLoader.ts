@@ -5,8 +5,8 @@ import { PDFLoader } from '@langchain/community/document_loaders/fs/pdf';
 import type { Document } from '@langchain/core/documents';
 import type { TextSplitter } from '@langchain/textsplitters';
 import { createWriteStream } from 'fs';
-import { JSONLoader } from 'langchain/document_loaders/fs/json';
-import { TextLoader } from 'langchain/document_loaders/fs/text';
+import { JSONLoader } from '@langchain/classic/document_loaders/fs/json';
+import { TextLoader } from '@langchain/classic/document_loaders/fs/text';
 import type {
 	IBinaryData,
 	IExecuteFunctions,
@@ -91,11 +91,11 @@ export class N8nBinaryLoader {
 			const binaryBuffer = await this.context.helpers.binaryToBuffer(
 				await this.context.helpers.getBinaryStream(binaryData.id),
 			);
-			return new Blob([binaryBuffer], {
+			return new Blob([new Uint8Array(binaryBuffer)], {
 				type: mimeType,
 			});
 		} else {
-			return new Blob([Buffer.from(binaryData.data, BINARY_ENCODING)], {
+			return new Blob([new Uint8Array(Buffer.from(binaryData.data, BINARY_ENCODING))], {
 				type: mimeType,
 			});
 		}

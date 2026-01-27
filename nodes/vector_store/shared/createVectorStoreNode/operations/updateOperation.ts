@@ -48,7 +48,7 @@ export async function handleUpdateOperation<T extends VectorStore = VectorStore>
 
 		try {
 			// Process the document from the input
-			let { processedDocuments, serializedDocuments } = await processDocument(
+			const { processedDocuments, serializedDocuments } = await processDocument(
 				loader,
 				itemData,
 				itemIndex,

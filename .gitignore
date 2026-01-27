@@ -7,3 +7,4 @@ npm-debug.log*
 yarn.lock
 .vscode/launch.json
 .idea/
+n8n-nodes-couchbase-*.tgz

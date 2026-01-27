@@ -381,6 +381,9 @@ export class VectorStoreCouchbaseSearch extends createVectorStoreNode<CouchbaseS
 				scopedIndex: isUseScopedIndex,
 			};
 
+			// Parse add vector options if provided
+			let addVectorOptions: { ids?: string[]; metadata?: Record<string, unknown>[] } | undefined;
+
 			const options = context.getNodeParameter('options', itemIndex, {}) as IDataObject;
 			if (options.addVectorOptions) {
 				const vectorOptions = (options.addVectorOptions as IDataObject).values as IDataObject;
@@ -399,9 +402,9 @@ export class VectorStoreCouchbaseSearch extends createVectorStoreNode<CouchbaseS
 						throw new NodeOperationError(context.getNode(), 'Invalid metadata JSON format');
 					}
 
-					// Add the vector options to the config
+					// Add the vector options
 					if (ids || metadata) {
-						couchbaseConfig.addVectorOptions = {
+						addVectorOptions = {
 							ids,
 							metadata,
 						};
@@ -409,7 +412,11 @@ export class VectorStoreCouchbaseSearch extends createVectorStoreNode<CouchbaseS
 				}
 			}
 
-			await CouchbaseSearchVectorStore.fromDocuments(documents, embeddings, couchbaseConfig);
+			// Initialize the vector store and use addDocuments to get the inserted IDs
+			const vectorStore = await CouchbaseSearchVectorStore.initialize(embeddings, couchbaseConfig);
+			const insertedIds = await vectorStore.addDocuments(documents, addVectorOptions);
+
+			return insertedIds;
 		} catch (error) {
 			if (!(error instanceof NodeOperationError)) {
 				throw new NodeOperationError(context.getNode(), `Error: ${error.message}`);

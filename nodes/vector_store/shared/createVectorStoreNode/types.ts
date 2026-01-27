@@ -57,13 +57,14 @@ export interface VectorStoreNodeConstructorArgs<T extends VectorStore = VectorSt
 	/**
 	 * Function to populate the vector store with documents
 	 * Used during the 'insert' operation mode
+	 * @returns Array of inserted document IDs, or void if IDs are not available
 	 */
 	populateVectorStore: (
 		context: IExecuteFunctions | ISupplyDataFunctions,
 		embeddings: Embeddings,
 		documents: Array<Document<Record<string, unknown>>>,
 		itemIndex: number,
-	) => Promise<void>;
+	) => Promise<string[] | void>;
 
 	/**
 	 * Function to get the vector store client

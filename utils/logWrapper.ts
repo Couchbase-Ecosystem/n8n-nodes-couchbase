@@ -6,10 +6,10 @@ import { Embeddings } from '@langchain/core/embeddings';
 import type { InputValues, MemoryVariables, OutputValues } from '@langchain/core/memory';
 import type { BaseMessage } from '@langchain/core/messages';
 import { BaseRetriever } from '@langchain/core/retrievers';
-import type { Tool } from '@langchain/core/tools';
+import type { Tool, DynamicStructuredTool, DynamicTool } from '@langchain/core/tools';
 import { VectorStore } from '@langchain/core/vectorstores';
 import { TextSplitter } from '@langchain/textsplitters';
-import type { BaseDocumentLoader } from 'langchain/dist/document_loaders/base';
+import type { BaseDocumentLoader } from '@langchain/classic/document_loaders/base';
 import type {
 	IExecuteFunctions,
 	INodeExecutionData,
@@ -68,6 +68,8 @@ export async function callMethodAsync<T>(
 export function logWrapper(
 	originalInstance:
 		| Tool
+		| DynamicStructuredTool
+		| DynamicTool
 		| BaseChatMemory
 		| BaseChatMessageHistory
 		| BaseRetriever
@@ -195,7 +197,7 @@ export function logWrapper(
 							executeFunctions,
 							connectionType,
 							currentNodeRunIndex: index,
-							method: target[prop],
+							method: target[prop] as (...args: any[]) => Promise<unknown>,
 							arguments: [query, config],
 						})) as Array<Document<Record<string, any>>>;
 
@@ -351,7 +353,7 @@ export function logWrapper(
 							executeFunctions,
 							connectionType,
 							currentNodeRunIndex: index,
-							method: target[prop],
+							method: (target as any)[prop] as (...args: any[]) => Promise<unknown>,
 							arguments: [query],
 						})) as string;
 

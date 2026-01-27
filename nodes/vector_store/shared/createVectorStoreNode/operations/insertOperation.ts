@@ -30,6 +30,7 @@ export async function handleInsertOperation<T extends VectorStore = VectorStore>
 
 	const resultData: INodeExecutionData[] = [];
 	const documentsForEmbedding: Array<Document<Record<string, unknown>>> = [];
+	const allInsertedIds: string[] = [];
 
 	// Process each input item
 	for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
@@ -51,26 +52,45 @@ export async function handleInsertOperation<T extends VectorStore = VectorStore>
 
 		// For the version 1, we run the populateVectorStore(embedding and insert) function for each item
 		if (nodeVersion === 1) {
-			await args.populateVectorStore(
+			const insertedIds = await args.populateVectorStore(
 				context,
 				embeddings,
 				processedDocuments.processedDocuments,
 				itemIndex,
 			);
+			if (insertedIds) {
+				allInsertedIds.push(...insertedIds);
+			}
 		}
 		// Log the AI event for analytics
 		logAiEvent(context, 'ai-vector-store-populated');
 	}
 
-	// For the version 2, we run the populateVectorStore in batches
-	if (nodeVersion >= 2) {
+	// For the version 1.1, we run the populateVectorStore in batches
+	if (nodeVersion >= 1.1) {
 		const embeddingBatchSize =
 			(context.getNodeParameter('embeddingBatchSize', 0, 200) as number) ?? 200;
 
 		// Populate the vector store with the processed documents in batches
 		for (let i = 0; i < documentsForEmbedding.length; i += embeddingBatchSize) {
 			const nextBatch = documentsForEmbedding.slice(i, i + embeddingBatchSize);
-			await args.populateVectorStore(context, embeddings, nextBatch, 0);
+			const insertedIds = await args.populateVectorStore(context, embeddings, nextBatch, 0);
+			if (insertedIds) {
+				allInsertedIds.push(...insertedIds);
+			}
+		}
+	}
+
+	// Add inserted document IDs to the result data
+	// Each result item gets the corresponding document ID if available
+	if (allInsertedIds.length > 0) {
+		for (let i = 0; i < resultData.length; i++) {
+			if (i < allInsertedIds.length) {
+				resultData[i].json = {
+					...resultData[i].json,
+					documentId: allInsertedIds[i],
+				};
+			}
 		}
 	}
 

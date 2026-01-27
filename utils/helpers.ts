@@ -1,6 +1,6 @@
 import type { BaseChatMessageHistory } from '@langchain/core/chat_history';
 import type { Tool } from '@langchain/core/tools';
-import type { BaseChatMemory } from 'langchain/memory';
+import type { BaseChatMemory } from '@langchain/classic/memory';
 import { jsonStringify } from 'n8n-workflow';
 import type {
 	AiEvent,

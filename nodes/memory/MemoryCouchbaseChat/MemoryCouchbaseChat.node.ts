@@ -1,4 +1,4 @@
-import { BufferWindowMemory } from 'langchain/memory';
+import { BufferWindowMemory } from '@langchain/classic/memory';
 import type {
 	ISupplyDataFunctions,
 	INodeType,

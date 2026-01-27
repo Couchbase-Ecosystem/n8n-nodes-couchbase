@@ -30,7 +30,8 @@ The Couchbase Query Vector Store node allows you to:
 - **Couchbase Collection**: The collection to store/retrieve vectors
 - **Distance Strategy**: The distance metric for similarity search
   - `DOT` - Dot product (default)
-  - `L2` - Euclidean distance
+  - `EUCLIDEAN` - Euclidean (also known as L2) distance
+  - `EUCLIDEAN_SQUARED` - Euclidean Squared (also known as L2 Squared) distance
   - `COSINE` - Cosine similarity
 - **Embedding Field Key**: The document field storing the vector embeddings
 - **Text Field Key**: The document field storing the raw text content

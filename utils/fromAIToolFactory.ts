@@ -1,8 +1,31 @@
+import type { DynamicStructuredTool, DynamicTool } from '@langchain/core/tools';
 import type { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
-import { DynamicStructuredTool, DynamicTool } from '@langchain/core/tools';
 import type { FromAIArgument, IDataObject, INode, INodeParameters } from 'n8n-workflow';
-import { generateZodSchema, traverseNodeParameters } from 'n8n-workflow';
-import { z } from 'zod';
+import { traverseNodeParameters } from 'n8n-workflow';
+
+/**
+ * Resolve the Zod instance from n8n's own dependency tree.
+ *
+ * Community nodes install into ~/.n8n/nodes/ with their own node_modules,
+ * creating separate Zod instances. n8n's zod-to-json-schema uses instanceof
+ * checks that fail across different Zod copies. By resolving Zod from
+ * n8n-workflow's module tree, we ensure our schemas use the same Zod
+ * instance that n8n's serialization pipeline expects.
+ */
+function resolveN8nModules() {
+	const nwResolved = require.resolve('n8n-workflow');
+	const n8nBase = nwResolved.substring(
+		0,
+		nwResolved.lastIndexOf('node_modules') + 'node_modules'.length,
+	);
+
+	return {
+		z: require(require.resolve('zod', { paths: [n8nBase] })),
+		lcTools: require(require.resolve('@langchain/core/tools', { paths: [n8nBase] })),
+	};
+}
+
+const { z: n8nZod, lcTools: n8nLcTools } = resolveN8nModules();
 
 export type ToolFunc = (
 	query: string | IDataObject,
@@ -36,16 +59,31 @@ export function extractFromAIParameters(nodeParameters: INodeParameters): FromAI
 }
 
 /**
- * Creates a Zod schema from $fromAI arguments.
+ * Creates a Zod schema from $fromAI arguments. Adapted to work with n8n's Zod instance to ensure compatibility with n8n's serialization.
  */
-export function createZodSchemaFromArgs(args: FromAIArgument[]): z.ZodObject<z.ZodRawShape> {
-	const schemaObj: Record<string, z.ZodTypeAny> = {};
-	for (const placeholder of args) {
-		// @ts-ignore - generateZodSchema returns a deeply nested type that causes TypeScript issues
-		schemaObj[placeholder.key] = generateZodSchema(placeholder);
+function buildN8nZodSchema(args: FromAIArgument[]) {
+	const schemaObj: Record<string, any> = {};
+	for (const arg of args) {
+		const type = arg.type || 'string';
+		switch (type) {
+			case 'number':
+				schemaObj[arg.key] = arg.description
+					? n8nZod.number().describe(arg.description)
+					: n8nZod.number();
+				break;
+			case 'boolean':
+				schemaObj[arg.key] = arg.description
+					? n8nZod.boolean().describe(arg.description)
+					: n8nZod.boolean();
+				break;
+			default:
+				schemaObj[arg.key] = arg.description
+					? n8nZod.string().describe(arg.description)
+					: n8nZod.string();
+				break;
+		}
 	}
-
-	return z.object(schemaObj).required();
+	return n8nZod.object(schemaObj).required();
 }
 
 /**
@@ -65,12 +103,17 @@ export function createToolFromNode(
 
 	// If there are no $fromAI arguments and no extra args, fallback to simple tool
 	if (collectedArguments.length === 0 && extraArgs.length === 0) {
-		return new DynamicTool({ name, description, func });
+		return new n8nLcTools.DynamicTool({ name, description, func });
 	}
 
 	// Combine collected arguments with extra arguments
 	const allArguments = [...collectedArguments, ...extraArgs];
-	const schema = createZodSchemaFromArgs(allArguments);
+	const schema = buildN8nZodSchema(allArguments);
 
-	return new DynamicStructuredTool({ schema, name, description, func } as any);
+	return new n8nLcTools.DynamicStructuredTool({
+		schema,
+		name,
+		description,
+		func,
+	});
 }

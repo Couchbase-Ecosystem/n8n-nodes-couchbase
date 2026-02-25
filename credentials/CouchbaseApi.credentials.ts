@@ -6,8 +6,8 @@ export class CouchbaseApi implements ICredentialType {
 	documentationUrl =
 		'https://github.com/Couchbase-Ecosystem/n8n-nodes-couchbase?tab=readme-ov-file#credentials';
 	icon: Icon = {
-		light: 'file:../nodes/Couchbase/couchbase.svg',
-		dark: 'file:../nodes/Couchbase/couchbase.dark.svg',
+		light: 'file:../nodes/icons/couchbase.svg',
+		dark: 'file:../nodes/icons/couchbase.dark.svg',
 	};
 	properties: INodeProperties[] = [
 		{

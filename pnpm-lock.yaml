@@ -32,6 +32,9 @@ importers:
       n8n-workflow:
         specifier: ^1.120.1
         version: 1.120.3
+      reo-census:
+        specifier: ^1.2.8
+        version: 1.2.8
       tmp-promise:
         specifier: ^3.0.3
         version: 3.0.3
@@ -2685,6 +2688,10 @@ packages:
 
   remove-trailing-separator@1.1.0:
     resolution: {integrity: sha512-/hS+Y0u3aOfIETiaiirUFwDBDzmXPvO+jAfKTitUngIPzdKc6Z0LoFjM/CK5PL4C+eKwHohlHAb6H0VFfmmUsw==}
+
+  reo-census@1.2.8:
+    resolution: {integrity: sha512-UMwpNwOieUTeymIITWCbo0In0FHGWZwnXIIYphpCPO/Bjl5z/385DWLnTxBcfFFCH/r/fEq/TZ0ivlPb6Smi9Q==}
+    engines: {node: '>=12.0.0'}
 
   repeat-element@1.1.4:
     resolution: {integrity: sha512-LFiNfRcSu7KK3evMyYOuCzv3L10TW7yC1G2/+StMjK8Y6Vqd2MG7r/Qjw4ghtuCOjFvlnms/iMmLqpvW/ES/WQ==}
@@ -5965,6 +5972,8 @@ snapshots:
       through2: 2.0.5
 
   remove-trailing-separator@1.1.0: {}
+
+  reo-census@1.2.8: {}
 
   repeat-element@1.1.4: {}
 

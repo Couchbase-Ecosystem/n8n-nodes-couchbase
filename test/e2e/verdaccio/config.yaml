@@ -1,0 +1,24 @@
+storage: /verdaccio/storage/data
+auth:
+  htpasswd:
+    file: /verdaccio/storage/htpasswd
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+    timeout: 60s
+    maxage: 3600s
+packages:
+  # Never proxy the package under test — the locally built tarball must win over
+  # whatever is published on npmjs, otherwise the E2E silently tests the release.
+  'n8n-nodes-couchbase':
+    access: $all
+    publish: $all
+    unpublish: $all
+  '**':
+    access: $all
+    publish: $all
+    unpublish: $all
+    proxy: npmjs
+publish:
+  allow_offline: true
+log: { type: stdout, format: pretty, level: warn }

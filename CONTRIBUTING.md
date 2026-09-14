@@ -102,6 +102,20 @@ This is necessary because homebrew explicitly removes npm and corepack from the 
 	 pnpm run dev:ui
 	 ```
 
+## Running the tests
+
+See [TESTING.md](TESTING.md) for the full strategy. The short version:
+
+```bash
+pnpm lint && pnpm format:check && pnpm typecheck
+pnpm build      # required before the package-contract and E2E tests
+pnpm test       # unit + package-contract tests (fast, no Docker)
+pnpm test:e2e   # installs into a real n8n and runs workflows (needs Docker)
+```
+
+CI runs the fast checks on every pull request and the E2E suite on pull requests,
+pushes to `master`, and nightly.
+
 ## Troubleshooting
 
 If you encounter any issues during setup:

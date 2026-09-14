@@ -1,0 +1,56 @@
+# E2E stack: a real Couchbase cluster, a local npm registry, and a real n8n instance.
+# The package under test is published to the registry and then installed through
+# n8n's own community-package installer — the same path a user takes in the UI.
+name: n8n-nodes-couchbase-e2e
+
+services:
+  couchbase:
+    image: couchbase/server:${COUCHBASE_IMAGE_TAG:-enterprise-7.6.3}
+    # No published ports: provisioning runs via `docker compose exec`, and n8n
+    # reaches the cluster over the compose network.
+    healthcheck:
+      test: ['CMD', 'curl', '-sf', 'http://127.0.0.1:8091/ui/index.html']
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
+
+  verdaccio:
+    image: verdaccio/verdaccio:6
+    ports:
+      - '${VERDACCIO_PORT:-4873}:4873'
+    volumes:
+      - ./verdaccio/config.yaml:/verdaccio/conf/config.yaml:ro
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1:4873/-/ping']
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:${N8N_IMAGE_TAG:-latest}
+    ports:
+      - '${N8N_PORT:-5678}:5678'
+    environment:
+      N8N_COMMUNITY_PACKAGES_ENABLED: 'true'
+      N8N_UNVERIFIED_PACKAGES_ENABLED: 'true'
+      # n8n shells out to npm, so redirecting npm itself points the community-package
+      # installer at Verdaccio. N8N_COMMUNITY_PACKAGES_REGISTRY is an Enterprise feature.
+      NPM_CONFIG_REGISTRY: 'http://verdaccio:4873'
+      N8N_ENCRYPTION_KEY: 'e2e-test-encryption-key'
+      N8N_DIAGNOSTICS_ENABLED: 'false'
+      N8N_VERSION_NOTIFICATIONS_ENABLED: 'false'
+      N8N_TEMPLATES_ENABLED: 'false'
+      N8N_PUBLIC_API_DISABLED: 'true'
+      E2E_COUCHBASE_CONNECTION_STRING: 'couchbase://couchbase'
+    depends_on:
+      couchbase:
+        condition: service_healthy
+      verdaccio:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider http://127.0.0.1:5678/healthz || exit 1']
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 10s

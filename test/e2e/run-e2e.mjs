@@ -87,8 +87,25 @@ function assertEqual(actual, expected, message) {
 
 // ------------------------------------------------------------------ n8n client
 
+/**
+ * Transient connection failures (the container briefly unresponsive, a dropped socket)
+ * should not fail a test. HTTP error *statuses* are real failures and are not retried.
+ */
+async function fetchWithRetry(url, init, attempts = 4) {
+	let lastError;
+	for (let attempt = 1; attempt <= attempts; attempt++) {
+		try {
+			return await fetch(url, init);
+		} catch (err) {
+			lastError = err;
+			if (attempt < attempts) await new Promise((r) => setTimeout(r, 500 * attempt));
+		}
+	}
+	throw new Error(`${init?.method ?? 'GET'} ${url} failed after ${attempts} attempts: ${lastError?.message}`);
+}
+
 async function api(path, { method = 'GET', body } = {}) {
-	const res = await fetch(`${N8N_URL}${path}`, {
+	const res = await fetchWithRetry(`${N8N_URL}${path}`, {
 		method,
 		headers: {
 			'Content-Type': 'application/json',
@@ -141,20 +158,31 @@ function firstJsonObject(text) {
  * so the exit status is ignored in favour of the JSON it prints.
  */
 function executeWorkflow(workflowId) {
-	const res = spawnSync(
-		'docker',
-		[
-			'compose', '-f', COMPOSE_FILE, 'exec', '-T',
-			// The server already owns the default task-broker port inside the container.
-			'-e', 'N8N_RUNNERS_ENABLED=false',
-			'-e', 'N8N_RUNNERS_BROKER_PORT=5699',
-			COMPOSE_SERVICE, 'n8n', 'execute', `--id=${workflowId}`, '--rawOutput',
-		],
-		{ encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
-	);
+	// Each invocation gets its own task-broker port. The n8n server already owns the
+	// default one, and back-to-back CLI runs otherwise collide with each other — which
+	// shows up as an exit-1 with no run data, on whichever test happened to run next.
+	let res;
+	let stdout = '';
+	let stderr = '';
+	for (let attempt = 1; attempt <= 3; attempt++) {
+		const brokerPort = 15000 + Math.floor(Math.random() * 20000);
+		res = spawnSync(
+			'docker',
+			[
+				'compose', '-f', COMPOSE_FILE, 'exec', '-T',
+				'-e', 'N8N_RUNNERS_ENABLED=false',
+				'-e', `N8N_RUNNERS_BROKER_PORT=${brokerPort}`,
+				COMPOSE_SERVICE, 'n8n', 'execute', `--id=${workflowId}`, '--rawOutput',
+			],
+			{ encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
+		);
+		stdout = res.stdout ?? '';
+		stderr = res.stderr ?? '';
+		// A workflow that ran and failed still prints run data; no JSON at all means the
+		// CLI itself could not start, which is worth one more try on a different port.
+		if (firstJsonObject(stdout) !== null) break;
+	}
 
-	const stdout = res.stdout ?? '';
-	const stderr = res.stderr ?? '';
 	const payload = firstJsonObject(stdout);
 	if (payload === null) {
 		// No run data at all — the CLI itself failed (bad id, broker clash, crash).
@@ -960,6 +988,27 @@ async function main() {
 
 		const marker = `vector-e2e-${Date.now()}`;
 
+		await test('clears vector documents left by previous runs', async () => {
+			// Every run seeds near-identical sentences. Left to accumulate, they become
+			// each other's nearest neighbours and push the current run's document out of
+			// topK — which is exactly how this suite started failing intermittently.
+			const run = await createAndRun(
+				'e2e-vector-purge',
+				[
+					{
+						name: 'Query',
+						params: {
+							resource: 'document',
+							operation: 'query',
+							query: `DELETE FROM \`${CB.bucket}\`.\`${CB.scope}\`.\`${CB.collection}\` WHERE embedding IS NOT MISSING`,
+						},
+					},
+				],
+				credentialId,
+			);
+			assertEqual(run.status, 'success', `purge failed: ${run.error?.message ?? ''}`);
+		});
+
 		await test('inserts documents into the vector store', async () => {
 			const nodes = [
 				{ id: 'T', name: 'T', type: 'n8n-nodes-base.manualTrigger', typeVersion: 1, position: [0, 0], parameters: {} },
@@ -1031,7 +1080,7 @@ async function main() {
 
 		await test('retrieves the inserted document by semantic search', async () => {
 			// The vector index is eventually consistent, like any other FTS index.
-			const deadline = Date.now() + Number(process.env.E2E_VECTOR_TIMEOUT_MS ?? 180000);
+			const deadline = Date.now() + Number(process.env.E2E_VECTOR_TIMEOUT_MS ?? 300000);
 			let last;
 			while (Date.now() < deadline) {
 				const nodes = [
@@ -1039,7 +1088,7 @@ async function main() {
 					vectorStoreNode(
 						'Load',
 						'load',
-						{ prompt: 'Which resort is on the north shore?', topK: 3, includeDocumentMetadata: true, options: {} },
+						{ prompt: `Tell me about ${marker}`, topK: 3, includeDocumentMetadata: true, options: {} },
 						[220, 0],
 					),
 					embeddingsNode('Embeddings', [220, 220]),
@@ -1221,6 +1270,193 @@ async function main() {
 			);
 		});
 
+		const CHAT_MODEL = process.env.E2E_CHAT_MODEL ?? 'gpt-4o-mini';
+
+		const chatModelNode = (name, position) => ({
+			id: name,
+			name,
+			type: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
+			typeVersion: 1.2,
+			position,
+			credentials: { openAiApi: { id: embeddingsCredentialId, name: 'E2E OpenAI' } },
+			parameters: {
+				model: { __rl: true, mode: 'list', value: CHAT_MODEL },
+				// Temperature 0 so repeated CI runs behave the same way.
+				options: { temperature: 0 },
+			},
+		});
+
+		// A fact the model cannot know unless retrieval actually worked.
+		const roomCount = 100 + Math.floor(Math.random() * 800);
+		const resortName = `Sapphire Lagoon ${Date.now()}`;
+		const retrievalQuestion = `How many guest rooms does the ${resortName} resort have? Answer with the number.`;
+		let retrievalDocId;
+
+		await test('seeds a document for the retrieval tests', async () => {
+			retrievalDocId = await insertDocument(
+				'e2e-retrieval-seed',
+				`The ${resortName} resort has exactly ${roomCount} guest rooms.`,
+			);
+		});
+
+		/**
+		 * Retrieval runs over an eventually-consistent index, so the first attempt can
+		 * legitimately miss. Retries the whole workflow until the answer contains the
+		 * seeded fact.
+		 */
+		async function pollForAnswer(label, buildWorkflow, nodeName) {
+			const deadline = Date.now() + Number(process.env.E2E_RETRIEVAL_TIMEOUT_MS ?? 300000);
+			let last;
+			let attempts = 0;
+			while (Date.now() < deadline) {
+				attempts++;
+				const { nodes, connections } = buildWorkflow();
+				last = await createAndRunRaw(`${label}-${attempts}`, nodes, connections);
+				const answer = JSON.stringify(last.output[nodeName] ?? []);
+				if (last.status === 'success' && answer.includes(String(roomCount))) {
+					return { attempts, answer };
+				}
+				await new Promise((r) => setTimeout(r, 5000));
+			}
+			throw new Error(
+				`${label} never produced the seeded fact (${roomCount}) after ${attempts} attempts; ` +
+					`last status=${last?.status} error=${last?.error?.message ?? 'none'} ` +
+					`output=${JSON.stringify(last?.output?.[nodeName] ?? []).slice(0, 400)}`,
+			);
+		}
+
+		// `retrieve` mode is currently broken by a duplicated @langchain/core: the package
+		// bundles its own copy, so n8n's `vectorStore instanceof VectorStore` check (against
+		// n8n's copy) is false, and RetrieverVectorStore falls into its reranker branch and
+		// dereferences `vectorStore.vectorStore`. Verified by swapping the package's
+		// @langchain/core for n8n's, which makes this pass.
+		//
+		// Written so it starts passing on its own once the dependency is de-duplicated,
+		// rather than needing to be remembered and re-enabled.
+		const buildRetrieveWorkflow = () => ({
+			nodes: [
+				{ id: 'T', name: 'T', type: 'n8n-nodes-base.manualTrigger', typeVersion: 1, position: [0, 0], parameters: {} },
+				{
+					id: 'Chain',
+					name: 'Chain',
+					type: '@n8n/n8n-nodes-langchain.chainRetrievalQa',
+					typeVersion: 1.6,
+					position: [220, 0],
+					parameters: { promptType: 'define', text: retrievalQuestion, options: {} },
+				},
+				chatModelNode('Model', [140, 220]),
+				{
+					id: 'Retriever',
+					name: 'Retriever',
+					type: '@n8n/n8n-nodes-langchain.retrieverVectorStore',
+					typeVersion: 1,
+					position: [360, 220],
+					parameters: { topK: 4 },
+				},
+				// The node under test: supplies itself as a vector store.
+				vectorStoreNode('Store', 'retrieve', { useReranker: false, options: {} }, [360, 420]),
+				embeddingsNode('Embeddings', [360, 620]),
+			],
+			connections: {
+				T: { main: [[{ node: 'Chain', type: 'main', index: 0 }]] },
+				Model: subNodeConnection('ai_languageModel', ['Chain']),
+				Retriever: subNodeConnection('ai_retriever', ['Chain']),
+				Store: subNodeConnection('ai_vectorStore', ['Retriever']),
+				Embeddings: subNodeConnection('ai_embedding', ['Store']),
+			},
+		});
+
+		// `retrieve` mode is currently broken by a duplicated @langchain/core: the package
+		// bundles its own copy, so n8n's `vectorStore instanceof VectorStore` check (against
+		// n8n's copy) is false, and RetrieverVectorStore falls into its reranker branch and
+		// dereferences `vectorStore.vectorStore`. Verified by swapping the package's
+		// @langchain/core for n8n's, which makes this pass.
+		//
+		// Probed outside the test wrapper so a known failure is reported as a skip rather
+		// than a pass, and so it starts passing on its own once the dependency is
+		// de-duplicated — no need to remember to re-enable it.
+		const retrieveProbe = await (async () => {
+			const { nodes, connections } = buildRetrieveWorkflow();
+			return createAndRunRaw('e2e-vector-retrieve-probe', nodes, connections);
+		})();
+		const retrieveSignature = `${retrieveProbe.error?.message ?? ''} ${retrieveProbe.error?.description ?? ''}`;
+
+		if (retrieveProbe.status !== 'success' && /asRetriever/.test(retrieveSignature)) {
+			skip(
+				'Couchbase vector stores in "retrieve" mode (as Vector Store for Chain/Tool)',
+				"Known bug: the package bundles its own @langchain/core, so n8n's " +
+					'`instanceof VectorStore` check fails and RetrieverVectorStore dereferences ' +
+					'`vectorStore.vectorStore` (undefined). Confirmed by pointing the package at ' +
+					"n8n's @langchain/core, which makes this pass. This test re-enables itself " +
+					'automatically once the dependency is de-duplicated.',
+				'In n8n: add a Couchbase vector store in "Retrieve Documents (As Vector Store ' +
+					'for Chain/Tool)" mode behind a Vector Store Retriever + Q&A chain. It currently ' +
+					'fails with "Cannot read properties of undefined (reading \'asRetriever\')".',
+			);
+		} else {
+			await test('retrieve mode feeds a retrieval QA chain', async () => {
+				const { attempts } = await pollForAnswer(
+					'e2e-vector-retrieve',
+					buildRetrieveWorkflow,
+					'Chain',
+				);
+				console.log(`      (answered on attempt ${attempts})`);
+			});
+		}
+
+		await test('retrieve-as-tool mode is callable by an AI agent', async () => {
+			const { attempts, answer } = await pollForAnswer(
+				'e2e-vector-tool',
+				() => ({
+					nodes: [
+						{ id: 'T', name: 'T', type: 'n8n-nodes-base.manualTrigger', typeVersion: 1, position: [0, 0], parameters: {} },
+						{
+							id: 'Agent',
+							name: 'Agent',
+							type: '@n8n/n8n-nodes-langchain.agent',
+							typeVersion: 3.1,
+							position: [220, 0],
+							parameters: {
+								promptType: 'define',
+								text:
+									`${retrievalQuestion} You must use the resort_knowledge_base tool to find out; ` +
+									'you do not know the answer otherwise.',
+								hasOutputParser: false,
+								needsFallback: false,
+								options: {},
+							},
+						},
+						chatModelNode('Model', [140, 220]),
+						// The node under test: exposed to the agent as a tool.
+						vectorStoreNode(
+							'Store',
+							'retrieve-as-tool',
+							{
+								toolName: 'resort_knowledge_base',
+								toolDescription: 'Look up facts about resorts, including how many guest rooms they have',
+								topK: 4,
+								includeDocumentMetadata: false,
+								options: {},
+							},
+							[360, 220],
+						),
+						embeddingsNode('Embeddings', [360, 420]),
+					],
+					connections: {
+						T: { main: [[{ node: 'Agent', type: 'main', index: 0 }]] },
+						Model: subNodeConnection('ai_languageModel', ['Agent']),
+						Store: subNodeConnection('ai_tool', ['Agent']),
+						Embeddings: subNodeConnection('ai_embedding', ['Store']),
+					},
+				}),
+				'Agent',
+			);
+			// The number can only have come from the tool, so a correct answer proves the
+			// tool was called and returned the seeded document.
+			assert(answer.includes(String(roomCount)), 'agent answer lost the retrieved fact');
+			console.log(`      (answered on attempt ${attempts})`);
+		});
+
 		// Probed against Couchbase directly rather than through the node: the node
 		// reports every query failure as a bare "ParsingFailureError", which cannot be
 		// told apart from a genuinely unsupported function.
@@ -1251,7 +1487,7 @@ async function main() {
 		} else await test('Query vector store retrieves via SQL++ vector distance', async () => {
 			// Same documents, different service: this node searches with SQL++
 			// APPROX_VECTOR_DISTANCE rather than the Search service.
-			const deadline = Date.now() + Number(process.env.E2E_VECTOR_TIMEOUT_MS ?? 180000);
+			const deadline = Date.now() + Number(process.env.E2E_VECTOR_TIMEOUT_MS ?? 300000);
 			let last;
 			while (Date.now() < deadline) {
 				const nodes = [
@@ -1259,7 +1495,7 @@ async function main() {
 					queryVectorStoreNode(
 						'Load',
 						'load',
-						{ prompt: 'Which resort is on the north shore?', topK: 3, includeDocumentMetadata: true, options: {} },
+						{ prompt: `Tell me about ${marker}`, topK: 3, includeDocumentMetadata: true, options: {} },
 						[220, 0],
 					),
 					embeddingsNode('Embeddings', [220, 220]),

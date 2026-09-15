@@ -161,10 +161,16 @@ real chat history into Couchbase and read it back — including a check that two
 stay isolated. No API key, fully deterministic.
 
 **Vector stores: covered when `OPENAI_API_KEY` is available.** `VectorStoreCouchbaseSearch`
-is tested for insert, semantic retrieval, in-place update, and ingestion of a document
-supplied as **binary** data (exercising `N8nBinaryLoader` rather than the JSON path);
-`VectorStoreCouchbaseQuery` is tested for retrieval over the same documents via SQL++.
-Without a key the suite **skips them loudly** (see below) rather than passing quietly.
+is tested for insert, semantic retrieval, in-place update, ingestion of a document supplied
+as **binary** data (exercising `N8nBinaryLoader` rather than the JSON path), and
+`retrieve-as-tool` — where a real AI agent has to call the vector store as a tool and come
+back with a fact it could not otherwise know. `VectorStoreCouchbaseQuery` is tested for
+retrieval over the same documents via SQL++. Without a key the suite **skips them loudly**
+(see below) rather than passing quietly.
+
+`retrieve` mode is the one vector-store mode not passing today, because of a real bug in
+the package — see finding 8. That test is written to re-enable itself automatically once
+the bug is fixed.
 
 The update and binary tests assert against the stored Couchbase document — read back with
 the Couchbase node — rather than against a search, so they are not subject to index lag.
@@ -172,6 +178,22 @@ the Couchbase node — rather than against a search, so they are not subject to 
 Unit-test line coverage is ~7%, which understates things badly: the E2E covers the node
 code at runtime, where Jest's instrumentation cannot see it. The paragraphs above are the
 meaningful statement, not the percentage.
+
+### Keeping it stable enough to gate a PR
+
+The E2E gates pull requests, so intermittent failures matter. Measured over repeated
+back-to-back runs, three distinct causes of flakiness turned up — none of them the AI
+tests, which were the ones expected to be unreliable:
+
+| Cause | Symptom | Fix |
+| --- | --- | --- |
+| Test-data pollution | Each run seeded a near-identical sentence. After a few runs they became each other's nearest neighbours and pushed the current run's document out of `topK`, so retrieval timed out | Vector documents are purged at the start of the vector-store section, and every retrieval query now searches for that run's unique marker |
+| Task-broker port collision | `n8n execute` exits 1 with no run data, failing whichever test ran next — several unrelated tests failing at once | Each CLI invocation gets its own random broker port, with one retry |
+| Transient connection blips | A single `fetch failed` against the n8n API failed a test outright | Network-level failures retry with backoff; HTTP error *statuses* are not retried, since those are real |
+
+The agent-driven tests turned out to be the *most* reliable part: `retrieve-as-tool`
+passed on every run, usually on the first attempt. Its variance is vector-index lag, not
+the model — the retrieval loop absorbs it, and the timeout is 300s (`E2E_RETRIEVAL_TIMEOUT_MS`).
 
 ### Skips are loud by design
 
@@ -188,12 +210,12 @@ Two things can trigger a skip:
 | --- | --- | --- |
 | Vector store nodes | `OPENAI_API_KEY` unset — **always the case on forked pull requests**, where GitHub does not expose repository secrets | Vector store behaviour unverified; validate manually or re-run on a branch |
 | Couchbase Query Vector Store | Server has no `APPROX_VECTOR_DISTANCE` (anything before 8.0) | That one node unverified; the rest still runs |
+| Vector stores in `retrieve` mode | The known `@langchain/core` duplication bug (finding 8) is still present | That mode unverified; re-enables itself when fixed |
 
 ### Remaining blind spots
 
 | Gap | Risk if it breaks |
 | --- | --- |
-| Vector store `retrieve` and `retrieve-as-tool` modes | Agent/tool integrations silently misbehave. Both need a **chat model**, not just embeddings: `retrieve` outputs `ai_vectorStore` and needs a retriever + QA chain to consume it; `retrieve-as-tool` outputs `ai_tool` and needs an Agent, which makes it non-deterministic (the model chooses whether to call the tool) — best run nightly, asserting the tool was invoked rather than on answer text |
 | Upgrading from a previously installed version | A broken upgrade path in the n8n UI; the E2E always installs fresh. Would need the previous release published into Verdaccio alongside the local build, then `PATCH /rest/community-packages` |
 | Node `typeVersion` 1 vs 2 | Low — `execute()` has no version branching, so both behave identically (verified by inspection) |
 
@@ -262,15 +284,42 @@ These came out of running the suite against the current release; none are fixed 
    already stated the 8.0+ requirement; the top-level README did not mention Couchbase
    versions at all (and omitted the node from its list) — both now fixed.
 
-7. **The Couchbase node discards query error details.** A failing SQL++ query surfaces as
+7. **`retrieve` mode is broken for both vector store nodes.** Using either Couchbase vector
+   store in *"Retrieve Documents (As Vector Store for Chain/Tool)"* mode fails with
+   `Cannot read properties of undefined (reading 'asRetriever')`.
+
+   Root cause: the package declares `@langchain/core` as a direct dependency, so a second
+   copy (1.2.11) is installed alongside n8n's (1.1.8). n8n's `RetrieverVectorStore` does:
+
+   ```js
+   if (vectorStore instanceof VectorStore) { retriever = vectorStore.asRetriever(topK); }
+   else { /* reranker branch */ baseRetriever: vectorStore.vectorStore.asRetriever(topK) }
+   ```
+
+   That `instanceof` is checked against *n8n's* copy of the class, so a store built on the
+   bundled copy fails it, falls into the reranker branch, and dereferences
+   `vectorStore.vectorStore`, which is undefined.
+
+   Confirmed by replacing the package's `@langchain/core` with n8n's inside a running
+   container: the same workflow goes from `error` to `success`. The same workflow also
+   works unchanged with n8n's built-in in-memory vector store, which rules out the test.
+
+   The likely fix is to move `@langchain/core` (and probably `@langchain/community`,
+   `@langchain/classic`, `@langchain/textsplitters` and `langchain`) from `dependencies` to
+   `peerDependencies` so the package shares n8n's copies. That is a dependency-resolution
+   change affecting every install, so it wants verifying on its own — the E2E suite is now
+   in a position to do exactly that. `retrieve-as-tool` is unaffected because that path
+   does not `instanceof`-check a LangChain class.
+
+8. **The Couchbase node discards query error details.** A failing SQL++ query surfaces as
    `Query failed with error: ParsingFailureError: parsing failure`; the server's actual
    message (*"Invalid function APPROX_VECTOR_DISTANCE"*) is dropped. That made the finding
    above much harder to diagnose than it needed to be, and it will do the same to users.
 
 ## Next steps
 
-1. Cover the vector stores' `retrieve` and `retrieve-as-tool` modes — the largest
-   remaining functional gap. Both need a chat model; see the blind-spot table for shape.
+1. De-duplicate `@langchain/core` (finding 7) to fix `retrieve` mode. The E2E test for it
+   re-enables itself automatically, so the fix is self-verifying.
 2. Document the Couchbase 8.0+ minimum for the Query Vector Store node, and surface the
    server's real error instead of a bare `ParsingFailureError`.
 3. Widen `format` and `format:check` to `utils` after a one-off `prettier utils --write`.

@@ -11,10 +11,22 @@
  *   node test/e2e/probe-node.mjs vectorStoreCouchbase   # filter by substring
  *   node test/e2e/probe-node.mjs n8n-nodes-couchbase.couchbase --params
  */
+import { readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 const BASE = process.env.E2E_N8N_URL ?? 'http://127.0.0.1:5678';
 const OWNER = { email: 'e2e@example.com', password: 'Testpassw0rd!' };
 
+// n8n rate-limits /rest/login, so the session is cached between invocations —
+// running this tool a few times in a row would otherwise lock you out.
+const COOKIE_CACHE = join(tmpdir(), 'n8n-e2e-probe-cookie');
 let cookie = '';
+try {
+	cookie = readFileSync(COOKIE_CACHE, 'utf8').trim();
+} catch {
+	/* no cached session yet */
+}
 async function api(path, opts = {}) {
 	const res = await fetch(`${BASE}${path}`, {
 		headers: {
@@ -37,10 +49,27 @@ async function api(path, opts = {}) {
 const [filter, ...flags] = process.argv.slice(2);
 const showParams = flags.includes('--params');
 
-await api('/rest/login', {
-	method: 'POST',
-	body: JSON.stringify({ emailOrLdapLoginId: OWNER.email, password: OWNER.password }),
-});
+async function ensureSession() {
+	if (cookie) {
+		const me = await api('/rest/login');
+		if (me?.email) return;
+	}
+	const res = await api('/rest/login', {
+		method: 'POST',
+		body: JSON.stringify({ emailOrLdapLoginId: OWNER.email, password: OWNER.password }),
+	});
+	if (typeof res === 'string' && res.includes('Too many requests')) {
+		console.error('n8n is rate-limiting logins. Wait a minute and retry.');
+		process.exit(1);
+	}
+	try {
+		writeFileSync(COOKIE_CACHE, cookie, { mode: 0o600 });
+	} catch {
+		/* cache is best-effort */
+	}
+}
+
+await ensureSession();
 
 const types = await api('/types/nodes.json');
 if (!Array.isArray(types)) {

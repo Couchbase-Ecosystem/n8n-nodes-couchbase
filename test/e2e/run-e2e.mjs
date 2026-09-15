@@ -10,7 +10,25 @@
  * and published the tarball to Verdaccio.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
+
+// Load test/e2e/.env so running this file directly against a kept stack behaves the
+// same as going through run.sh. Real environment variables always win.
+(() => {
+	try {
+		const envFile = new URL('./.env', import.meta.url).pathname;
+		for (const line of readFileSync(envFile, 'utf8').split('\n')) {
+			const trimmed = line.trim();
+			if (!trimmed || trimmed.startsWith('#')) continue;
+			const eq = trimmed.indexOf('=');
+			if (eq === -1) continue;
+			const key = trimmed.slice(0, eq).trim();
+			if (!process.env[key]) process.env[key] = trimmed.slice(eq + 1);
+		}
+	} catch {
+		/* no .env is fine — the affected tests skip with a warning */
+	}
+})();
 
 const N8N_URL = process.env.E2E_N8N_URL ?? 'http://127.0.0.1:5678';
 const PACKAGE_NAME = process.env.E2E_PACKAGE_NAME ?? 'n8n-nodes-couchbase';
@@ -986,6 +1004,10 @@ async function main() {
 
 			const run = await createAndRunRaw('e2e-vector-insert', nodes, connections);
 			assertEqual(run.status, 'success', `vector insert failed: ${run.error?.message ?? ''}`);
+			assert(
+				run.output.Insert?.[0]?.documentId,
+				`insert did not report a documentId: ${JSON.stringify(run.output.Insert ?? []).slice(0, 300)}`,
+			);
 		});
 
 		const queryVectorStoreNode = (name, mode, extraParams, position) => ({
@@ -1034,6 +1056,168 @@ async function main() {
 				`vector search never returned the inserted document; last status=${last?.status} ` +
 					`error=${last?.error?.message ?? 'none'} ` +
 					`output=${JSON.stringify(last?.output?.Load ?? []).slice(0, 400)}`,
+			);
+		});
+
+		/** Inserts one document and returns the id the vector store assigned it. */
+		async function insertDocument(workflowName, text) {
+			const nodes = [
+				{ id: 'T', name: 'T', type: 'n8n-nodes-base.manualTrigger', typeVersion: 1, position: [0, 0], parameters: {} },
+				{
+					id: 'Data',
+					name: 'Data',
+					type: 'n8n-nodes-base.set',
+					typeVersion: 3.4,
+					position: [200, 0],
+					parameters: { mode: 'raw', jsonOutput: JSON.stringify({ text }) },
+				},
+				vectorStoreNode('Insert', 'insert', { embeddingBatchSize: 1, options: {} }, [420, 0]),
+				embeddingsNode('Embeddings', [420, 220]),
+				{
+					id: 'Loader',
+					name: 'Loader',
+					type: '@n8n/n8n-nodes-langchain.documentDefaultDataLoader',
+					typeVersion: 1.1,
+					position: [620, 220],
+					parameters: {
+						dataType: 'json',
+						jsonMode: 'expressionData',
+						jsonData: '={{ $json.text }}',
+						textSplittingMode: 'simple',
+						options: {},
+					},
+				},
+			];
+			const connections = {
+				T: { main: [[{ node: 'Data', type: 'main', index: 0 }]] },
+				Data: { main: [[{ node: 'Insert', type: 'main', index: 0 }]] },
+				Embeddings: subNodeConnection('ai_embedding', ['Insert']),
+				Loader: subNodeConnection('ai_document', ['Insert']),
+			};
+			const run = await createAndRunRaw(workflowName, nodes, connections);
+			assertEqual(run.status, 'success', `insert failed: ${run.error?.message ?? ''}`);
+			const id = run.output.Insert?.[0]?.documentId;
+			assert(id, 'insert did not report a documentId');
+			return id;
+		}
+
+		/** Reads a raw document straight out of Couchbase with the Couchbase node. */
+		async function readRawDocument(workflowName, documentId) {
+			const run = await createAndRun(
+				workflowName,
+				[{ name: 'Read', params: { resource: 'document', operation: 'read', documentId } }],
+				credentialId,
+			);
+			assertEqual(run.status, 'success', `read failed: ${run.error?.message ?? ''}`);
+			return String(run.output.Read?.[0]?.value ?? '');
+		}
+
+		await test('updates an existing document in place', async () => {
+			const before = `update-before-${Date.now()}`;
+			const after = `update-after-${Date.now()}`;
+			const documentId = await insertDocument('e2e-vector-update-seed', `A document about ${before}.`);
+
+			const nodes = [
+				{ id: 'T', name: 'T', type: 'n8n-nodes-base.manualTrigger', typeVersion: 1, position: [0, 0], parameters: {} },
+				{
+					id: 'Data',
+					name: 'Data',
+					type: 'n8n-nodes-base.set',
+					typeVersion: 3.4,
+					position: [200, 0],
+					parameters: { mode: 'raw', jsonOutput: JSON.stringify({ text: `A document about ${after}.` }) },
+				},
+				// Update takes its content from the incoming item, so it needs no document loader.
+				vectorStoreNode('Update', 'update', { id: documentId, options: {} }, [420, 0]),
+				embeddingsNode('Embeddings', [420, 220]),
+			];
+			const connections = {
+				T: { main: [[{ node: 'Data', type: 'main', index: 0 }]] },
+				Data: { main: [[{ node: 'Update', type: 'main', index: 0 }]] },
+				Embeddings: subNodeConnection('ai_embedding', ['Update']),
+			};
+			const run = await createAndRunRaw('e2e-vector-update', nodes, connections);
+			assertEqual(run.status, 'success', `vector update failed: ${run.error?.message ?? ''}`);
+
+			// Checked against the stored document rather than a search, so the assertion
+			// is not subject to index lag.
+			const stored = await readRawDocument('e2e-vector-update-verify', documentId);
+			assert(stored.includes(after), `update did not write the new content: ${stored.slice(0, 300)}`);
+			assert(!stored.includes(before), `update left the old content behind: ${stored.slice(0, 300)}`);
+		});
+
+		await test('ingests a document supplied as binary data', async () => {
+			const marker = `binary-doc-${Date.now()}`;
+			const nodes = [
+				{ id: 'T', name: 'T', type: 'n8n-nodes-base.manualTrigger', typeVersion: 1, position: [0, 0], parameters: {} },
+				{
+					id: 'Data',
+					name: 'Data',
+					type: 'n8n-nodes-base.set',
+					typeVersion: 3.4,
+					position: [180, 0],
+					parameters: {
+						mode: 'raw',
+						jsonOutput: JSON.stringify({ text: `A binary-loaded document about ${marker}.` }),
+					},
+				},
+				{
+					// Turns the JSON field into a real binary attachment, so the loader
+					// exercises N8nBinaryLoader rather than the JSON path.
+					id: 'ToFile',
+					name: 'ToFile',
+					type: 'n8n-nodes-base.convertToFile',
+					typeVersion: 1.1,
+					position: [360, 0],
+					parameters: { operation: 'toText', sourceProperty: 'text', binaryPropertyName: 'data', options: {} },
+				},
+				vectorStoreNode('Insert', 'insert', { embeddingBatchSize: 1, options: {} }, [560, 0]),
+				embeddingsNode('Embeddings', [560, 220]),
+				{
+					id: 'Loader',
+					name: 'Loader',
+					type: '@n8n/n8n-nodes-langchain.documentDefaultDataLoader',
+					typeVersion: 1.1,
+					position: [760, 220],
+					parameters: {
+						dataType: 'binary',
+						binaryMode: 'allInputData',
+						loader: 'auto',
+						binaryDataKey: 'data',
+						textSplittingMode: 'simple',
+						options: {},
+					},
+				},
+			];
+			const connections = {
+				T: { main: [[{ node: 'Data', type: 'main', index: 0 }]] },
+				Data: { main: [[{ node: 'ToFile', type: 'main', index: 0 }]] },
+				ToFile: { main: [[{ node: 'Insert', type: 'main', index: 0 }]] },
+				Embeddings: subNodeConnection('ai_embedding', ['Insert']),
+				Loader: subNodeConnection('ai_document', ['Insert']),
+			};
+
+			const run = await createAndRunRaw('e2e-vector-binary', nodes, connections);
+			assertEqual(run.status, 'success', `binary ingestion failed: ${run.error?.message ?? ''}`);
+
+			// Guards the point of the test: convertToFile empties `json`, so the text can
+			// only have reached Couchbase through the binary loader. If a future change
+			// starts passing the text through JSON too, this test stops proving anything.
+			assert(
+				!JSON.stringify(run.output.ToFile ?? []).includes(marker),
+				'convertToFile now leaves the text in json, so this test no longer proves the binary path',
+			);
+
+			const documentId = run.output.Insert?.[0]?.documentId;
+			assert(
+				documentId,
+				`binary insert reported no documentId: ${JSON.stringify(run.output.Insert ?? []).slice(0, 300)}`,
+			);
+
+			const stored = await readRawDocument('e2e-vector-binary-verify', documentId);
+			assert(
+				stored.includes(marker),
+				`binary-loaded document did not reach Couchbase: ${stored.slice(0, 300)}`,
 			);
 		});
 

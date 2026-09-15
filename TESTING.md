@@ -161,9 +161,13 @@ real chat history into Couchbase and read it back — including a check that two
 stay isolated. No API key, fully deterministic.
 
 **Vector stores: covered when `OPENAI_API_KEY` is available.** `VectorStoreCouchbaseSearch`
-is tested insert → semantic retrieval; `VectorStoreCouchbaseQuery` is tested retrieval over
-the same documents via SQL++. Without a key the suite **skips them loudly** (see below)
-rather than passing quietly.
+is tested for insert, semantic retrieval, in-place update, and ingestion of a document
+supplied as **binary** data (exercising `N8nBinaryLoader` rather than the JSON path);
+`VectorStoreCouchbaseQuery` is tested for retrieval over the same documents via SQL++.
+Without a key the suite **skips them loudly** (see below) rather than passing quietly.
+
+The update and binary tests assert against the stored Couchbase document — read back with
+the Couchbase node — rather than against a search, so they are not subject to index lag.
 
 Unit-test line coverage is ~7%, which understates things badly: the E2E covers the node
 code at runtime, where Jest's instrumentation cannot see it. The paragraphs above are the
@@ -189,10 +193,32 @@ Two things can trigger a skip:
 
 | Gap | Risk if it breaks |
 | --- | --- |
-| Vector store `retrieve`, `retrieve-as-tool` and `update` modes | Agent/tool integrations silently misbehave — only `insert` and `load` are covered |
-| `N8nBinaryLoader` / binary document ingestion | Binary document loading into the vector store |
-| Upgrading from a previously installed version | A broken upgrade path in the n8n UI; the E2E always installs fresh |
+| Vector store `retrieve` and `retrieve-as-tool` modes | Agent/tool integrations silently misbehave. Both need a **chat model**, not just embeddings: `retrieve` outputs `ai_vectorStore` and needs a retriever + QA chain to consume it; `retrieve-as-tool` outputs `ai_tool` and needs an Agent, which makes it non-deterministic (the model chooses whether to call the tool) — best run nightly, asserting the tool was invoked rather than on answer text |
+| Upgrading from a previously installed version | A broken upgrade path in the n8n UI; the E2E always installs fresh. Would need the previous release published into Verdaccio alongside the local build, then `PATCH /rest/community-packages` |
 | Node `typeVersion` 1 vs 2 | Low — `execute()` has no version branching, so both behave identically (verified by inspection) |
+
+## Adding coverage for another node or mode
+
+1. **Find the shape n8n expects.** Bring a stack up with `E2E_KEEP=1 pnpm test:e2e`, then:
+
+   ```bash
+   node test/e2e/probe-node.mjs                                   # list this package's nodes
+   node test/e2e/probe-node.mjs vectorStoreCouchbase --params     # inputs, outputs, parameters
+   ```
+
+   This is the step worth not skipping — most failed attempts come from guessing a
+   parameter name or missing a required sub-node input.
+
+2. **Build the workflow JSON.** Main connections plus sub-node connections, remembering
+   that an AI sub-node is the *source* of its connection — `subNodeConnection()` handles
+   the shape.
+
+3. **Create and execute**: `createAndRunRaw(name, nodes, connections)`, then assert on
+   per-node output. Prefer asserting against stored Couchbase state (via the Couchbase
+   node) over search results, which are eventually consistent.
+
+4. **Gate it** with `skip()` if it needs something not always present — an API key, a
+   minimum server version — so an unverified area is never mistaken for a verified one.
 
 ## Findings from building this
 
@@ -243,8 +269,8 @@ These came out of running the suite against the current release; none are fixed 
 
 ## Next steps
 
-1. Cover the vector stores' `retrieve`, `retrieve-as-tool` and `update` modes — the
-   largest remaining functional gap.
+1. Cover the vector stores' `retrieve` and `retrieve-as-tool` modes — the largest
+   remaining functional gap. Both need a chat model; see the blind-spot table for shape.
 2. Document the Couchbase 8.0+ minimum for the Query Vector Store node, and surface the
    server's real error instead of a bare `ParsingFailureError`.
 3. Widen `format` and `format:check` to `utils` after a one-off `prettier utils --write`.

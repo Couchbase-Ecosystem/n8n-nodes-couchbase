@@ -53,7 +53,7 @@ jobs:
       - name: Package contract tests
         run: pnpm test:package
 
-      # The stricter rule set `prepublishOnly` enforces at release time. Running it
-      # here means a release cannot fail on a lint rule that CI never checked.
+      # The same stricter rule set `prepublishOnly` runs at release time, so a release
+      # cannot fail on a lint rule CI never checked.
       - name: Prepublish lint
-        run: pnpm lint -c .eslintrc.prepublish.js nodes credentials package.json
+        run: pnpm lint:prepublish

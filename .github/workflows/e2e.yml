@@ -16,10 +16,10 @@ on:
         description: 'n8n image tag to test against'
         required: false
         default: 'latest'
-      couchbase_image_tag:
-        description: 'Couchbase Server image tag to test against'
+      couchbase_image:
+        description: 'Couchbase Server image to test against'
         required: false
-        default: 'enterprise-7.6.3'
+        default: 'couchbase:enterprise-8.0.1'
 
 concurrency:
   group: e2e-${{ github.ref }}
@@ -42,9 +42,12 @@ jobs:
 
     env:
       N8N_IMAGE_TAG: ${{ inputs.n8n_image_tag || 'latest' }}
-      COUCHBASE_IMAGE_TAG: ${{ inputs.couchbase_image_tag || 'enterprise-7.6.3' }}
+      COUCHBASE_IMAGE: ${{ inputs.couchbase_image || 'couchbase:enterprise-8.0.1' }}
       # Leave the stack up so the failure step can collect logs; torn down below.
       E2E_KEEP: '1'
+      # Absent on forked pull requests — GitHub does not expose secrets to them.
+      # The runner skips the vector-store tests loudly rather than failing.
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
     steps:
       - uses: actions/checkout@v4
@@ -58,6 +61,13 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Warn when the embeddings key is unavailable
+        if: env.OPENAI_API_KEY == ''
+        run: |
+          echo "::warning title=Vector store tests will be skipped::OPENAI_API_KEY is not \
+          available to this run (expected on forked pull requests). The vector-store \
+          nodes will not be verified — see the run summary for manual validation steps."
 
       - name: Run E2E
         run: ./test/e2e/run.sh

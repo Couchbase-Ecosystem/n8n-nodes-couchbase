@@ -12,6 +12,9 @@ VECTOR_INDEX="${CB_VECTOR_INDEX:-e2e-vector-index}"
 # Must match the embedding model used by the vector-store tests
 # (OpenAI text-embedding-3-small = 1536).
 VECTOR_DIMS="${CB_VECTOR_DIMS:-1536}"
+CB_RAM="${CB_RAM:-1024}"
+CB_INDEX_RAM="${CB_INDEX_RAM:-512}"
+CB_FTS_RAM="${CB_FTS_RAM:-512}"
 CLI=/opt/couchbase/bin/couchbase-cli
 
 echo "==> waiting for the web console"
@@ -28,7 +31,8 @@ else
   "$CLI" cluster-init -c 127.0.0.1 \
     --cluster-username "$CB_USER" --cluster-password "$CB_PASS" \
     --services data,index,query,fts \
-    --cluster-ramsize 512 --cluster-index-ramsize 256 --cluster-fts-ramsize 256 \
+    --cluster-ramsize "$CB_RAM" --cluster-index-ramsize "$CB_INDEX_RAM" \
+    --cluster-fts-ramsize "$CB_FTS_RAM" \
     --index-storage-setting default
 fi
 

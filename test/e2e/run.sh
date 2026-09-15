@@ -10,6 +10,16 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 COMPOSE=(docker compose -f "$HERE/docker-compose.yml")
 
+# Local secrets (OPENAI_API_KEY etc). Values already in the environment win, so CI
+# secrets are never overridden by a stale local file.
+if [[ -f "$HERE/.env" ]]; then
+  while IFS='=' read -r key value; do
+    key="${key%%[[:space:]]*}"
+    [[ -z "$key" || "$key" == \#* ]] && continue
+    if [[ -z "${!key:-}" ]]; then export "$key=$value"; fi
+  done < "$HERE/.env"
+fi
+
 VERDACCIO_PORT="${VERDACCIO_PORT:-4873}"
 N8N_PORT="${N8N_PORT:-5678}"
 export VERDACCIO_PORT N8N_PORT

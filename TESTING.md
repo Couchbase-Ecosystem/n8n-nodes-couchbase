@@ -28,10 +28,14 @@ pnpm test:e2e                                       # layer 4 (needs Docker)
 Useful E2E knobs:
 
 ```bash
-E2E_KEEP=1 pnpm test:e2e            # leave the stack up for debugging
-N8N_IMAGE_TAG=1.123.4 pnpm test:e2e # pin the n8n version under test
-E2E_SKIP_SEARCH=1 pnpm test:e2e     # skip the full-text search tests
-N8N_PORT=15678 VERDACCIO_PORT=14873 pnpm test:e2e  # avoid local port clashes
+E2E_KEEP=1 pnpm test:e2e             # leave the stack up for debugging
+N8N_IMAGE_TAG=1.123.4 pnpm test:e2e  # pin the n8n version under test
+COUCHBASE_IMAGE=couchbase/server:enterprise-7.6.7 pnpm test:e2e  # pin Couchbase
+E2E_SKIP_SEARCH=1 pnpm test:e2e      # skip the full-text search tests
+N8N_PORT=15678 VERDACCIO_PORT=14873 pnpm test:e2e   # avoid local port clashes
+
+# Vector-store tests need an embeddings model; without a key they are skipped loudly.
+OPENAI_API_KEY=sk-... pnpm test:e2e
 ```
 
 With `E2E_KEEP=1` the driver is re-runnable on its own:
@@ -132,6 +136,12 @@ index) through `POST /rest/dynamic-node-parameters/resource-locator-results`, th
 endpoint the editor calls. These matter: if a `listSearch` method breaks, saved workflows
 keep running but nobody can configure a new node, so no other layer would notice.
 
+**Chat memory** — messages inserted and loaded through the Couchbase memory node via n8n's
+Chat Memory Manager, plus session isolation. Needs no model.
+
+**Vector stores** — insert and semantic retrieval through the Search node, and SQL++
+retrieval through the Query node. Needs `OPENAI_API_KEY`; skipped loudly without one.
+
 ## Layer 5 — Release scan
 
 `@n8n/scan-community-package` is what n8n runs against community nodes before marking them
@@ -141,42 +151,48 @@ verified. It inspects the published artefact, so it runs on release, not on PRs.
 
 ## What is actually covered — and what is not
 
-This is the part to read before trusting a release.
-
-**`Couchbase` node (KV / Query / Search): well covered.** Every document operation, both
+**`Couchbase` node (KV / Query / Search): fully covered.** Every document operation, both
 search operations, both search modes, the error paths, and all four resource-locator
-dropdowns run against a real cluster inside a real n8n. A regression here should fail CI.
+dropdowns run against a real cluster inside a real n8n.
 
-**The three AI nodes are smoke-tested only.** `VectorStoreCouchbaseSearch`,
-`VectorStoreCouchbaseQuery` and `MemoryCouchbaseChat` are proven to *load*, register with
-n8n, and expose a valid description — the package-contract suite instantiates all four
-nodes. Nothing exercises their behaviour. That is roughly 1,500 lines of vector-store code
-plus the chat-memory history, untested.
+**`MemoryCouchbaseChat`: covered, with no model required.** n8n's built-in Chat Memory
+Manager node can insert and load messages through any connected memory, so the tests drive
+real chat history into Couchbase and read it back — including a check that two sessions
+stay isolated. No API key, fully deterministic.
 
-Unit-test line coverage is **~7%**, and that number is honest rather than flattering: the
-E2E covers `Couchbase.node.ts` at runtime, which Jest's coverage does not see. The
-meaningful statement is the two paragraphs above, not the percentage.
+**Vector stores: covered when `OPENAI_API_KEY` is available.** `VectorStoreCouchbaseSearch`
+is tested insert → semantic retrieval; `VectorStoreCouchbaseQuery` is tested retrieval over
+the same documents via SQL++. Without a key the suite **skips them loudly** (see below)
+rather than passing quietly.
 
-Specific blind spots, in rough order of risk:
+Unit-test line coverage is ~7%, which understates things badly: the E2E covers the node
+code at runtime, where Jest's instrumentation cannot see it. The paragraphs above are the
+meaningful statement, not the percentage.
 
-| Gap | Risk if it breaks | Why it is not covered |
+### Skips are loud by design
+
+An unverified area must never look like a verified one. When the runner skips something it:
+
+- prints a `⚠ SKIPPED` line inline, and a boxed **NOT VERIFIED BY THIS RUN** summary at the end
+- states *why* it skipped and *how to validate it by hand*
+- emits a GitHub Actions `::warning::` annotation and a job-summary table, so it is visible
+  on the pull request rather than buried in the log
+
+Two things can trigger a skip:
+
+| Skip | When | Consequence |
 | --- | --- | --- |
-| Vector store insert / retrieve / update / retrieve-as-tool | Silent data or search failures for AI users | Needs an embeddings provider in CI — see below |
-| Chat memory read/write | Agents lose conversation history | Needs a model + parent chain |
-| `logWrapper`, `N8nBinaryLoader`, `N8nJsonLoader`, `fromAIToolFactory` | Vendored n8n helpers used only by the AI nodes | Only reachable through those nodes |
-| Node `typeVersion` 1 vs 2 | Low — `execute()` has no version branching, so both behave identically | Verified by inspection, not by test |
-| Upgrading from a previously installed version | A broken upgrade path in the n8n UI | The E2E always installs fresh |
+| Vector store nodes | `OPENAI_API_KEY` unset — **always the case on forked pull requests**, where GitHub does not expose repository secrets | Vector store behaviour unverified; validate manually or re-run on a branch |
+| Couchbase Query Vector Store | Server has no `APPROX_VECTOR_DISTANCE` (anything before 8.0) | That one node unverified; the rest still runs |
 
-### Closing the AI-node gap
+### Remaining blind spots
 
-The vector store and memory nodes need an embeddings model to test end to end. Two viable
-routes, both a real cost trade-off rather than a technical blocker:
-
-- **Ollama in the compose stack** — add an `ollama` service and pull a small embedding
-  model (`all-minilm` is ~45 MB). No API key, no spend, fully hermetic; costs image pull
-  and CI minutes, so it likely belongs in the nightly run rather than on every PR.
-- **A real provider key** (OpenAI or similar) as a CI secret — fast and small, but adds
-  spend, secret management, and an external dependency that can flake or rate-limit.
+| Gap | Risk if it breaks |
+| --- | --- |
+| Vector store `retrieve`, `retrieve-as-tool` and `update` modes | Agent/tool integrations silently misbehave — only `insert` and `load` are covered |
+| `N8nBinaryLoader` / binary document ingestion | Binary document loading into the vector store |
+| Upgrading from a previously installed version | A broken upgrade path in the n8n UI; the E2E always installs fresh |
+| Node `typeVersion` 1 vs 2 | Low — `execute()` has no version branching, so both behave identically (verified by inspection) |
 
 ## Findings from building this
 
@@ -210,9 +226,26 @@ These came out of running the suite against the current release; none are fixed 
 5. **"Create Index" fails when the index already exists**, despite using `upsertIndex`.
    The E2E therefore uses a unique index name per run.
 
+6. **The Couchbase Query Vector Store node requires Couchbase Server 8.0 or newer.**
+   It builds SQL++ around `APPROX_VECTOR_DISTANCE`. That function does not exist in 7.6.x
+   — verified against both 7.6.3 and 7.6.7, which both answer
+   *"Invalid function APPROX_VECTOR_DISTANCE"*; 8.0.1 accepts it. On an older server the
+   node fails with an opaque `ParsingFailureError: parsing failure` that gives the user no
+   hint about the real cause. The E2E therefore defaults to `couchbase:enterprise-8.0.1`
+   and skips that one test, with an explanation, on older servers. The node's own README
+   already stated the 8.0+ requirement; the top-level README did not mention Couchbase
+   versions at all (and omitted the node from its list) — both now fixed.
+
+7. **The Couchbase node discards query error details.** A failing SQL++ query surfaces as
+   `Query failed with error: ParsingFailureError: parsing failure`; the server's actual
+   message (*"Invalid function APPROX_VECTOR_DISTANCE"*) is dropped. That made the finding
+   above much harder to diagnose than it needed to be, and it will do the same to users.
+
 ## Next steps
 
-1. Close the AI-node gap (see above) — this is the one thing standing between "the
-   Couchbase node is release-tested" and "the package is release-tested".
-2. Widen `format` and `format:check` to `utils` after a one-off `prettier utils --write`.
-3. Publish with npm provenance so `verify-published.yml` passes (tracked separately).
+1. Cover the vector stores' `retrieve`, `retrieve-as-tool` and `update` modes — the
+   largest remaining functional gap.
+2. Document the Couchbase 8.0+ minimum for the Query Vector Store node, and surface the
+   server's real error instead of a bare `ParsingFailureError`.
+3. Widen `format` and `format:check` to `utils` after a one-off `prettier utils --write`.
+4. Publish with npm provenance so `verify-published.yml` passes (tracked separately).

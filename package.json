@@ -23,19 +23,20 @@
   "main": "index.js",
   "scripts": {
     "preinstall": "npx only-allow pnpm",
+    "prepublishOnly": "pnpm build && pnpm lint:prepublish",
     "build": "tsc && tsc-alias && gulp build:icons",
     "dev": "tsc --watch",
     "dev:ui": "nodemon -w nodes -w credentials -w utils --ext ts --exec 'tsc && tsc-alias && cd $HOME/.n8n/custom && COREPACK_ENABLE_STRICT=0 pnpm install && cd - && n8n'",
-    "format": "prettier nodes credentials --write",
     "lint": "eslint nodes credentials package.json",
-    "lintfix": "eslint nodes credentials package.json --fix",
-    "typecheck": "tsc --noEmit",
+    "lint:fix": "eslint nodes credentials package.json --fix",
+    "lint:prepublish": "eslint -c .eslintrc.prepublish.js nodes credentials package.json",
+    "format": "prettier nodes credentials --write",
     "format:check": "prettier nodes credentials --check",
+    "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:unit": "jest test/unit",
     "test:package": "jest test/package",
-    "test:e2e": "./test/e2e/run.sh",
-    "prepublishOnly": "pnpm build && pnpm lint -c .eslintrc.prepublish.js nodes credentials package.json"
+    "test:e2e": "./test/e2e/run.sh"
   },
   "files": [
     "dist"

@@ -113,6 +113,14 @@ pnpm test       # unit + package-contract tests (fast, no Docker)
 pnpm test:e2e   # installs into a real n8n and runs workflows (needs Docker)
 ```
 
+Scripts follow a `verb:variant` naming convention (`lint`, `lint:fix`, `format:check`,
+`test:unit`). The two exceptions are npm's own lifecycle hooks, `preinstall` and
+`prepublishOnly`, whose names npm defines.
+
+The E2E vector-store tests need an embeddings model. Copy `test/e2e/.env.example` to
+`test/e2e/.env` and add an `OPENAI_API_KEY`; without one those tests are skipped with a
+warning rather than failing.
+
 CI runs the fast checks on every pull request and the E2E suite on pull requests,
 pushes to `master`, and nightly.
 

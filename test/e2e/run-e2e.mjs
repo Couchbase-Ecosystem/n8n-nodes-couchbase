@@ -964,9 +964,17 @@ async function main() {
 					id: 'Loader',
 					name: 'Loader',
 					type: '@n8n/n8n-nodes-langchain.documentDefaultDataLoader',
-					typeVersion: 1,
+					// 1.1 adds `textSplittingMode`; at 1.0 the loader requires a separate
+					// text-splitter sub-node to be wired in.
+					typeVersion: 1.1,
 					position: [620, 220],
-					parameters: { jsonMode: 'expressionData', jsonData: '={{ $json.text }}', options: {} },
+					parameters: {
+						dataType: 'json',
+						jsonMode: 'expressionData',
+						jsonData: '={{ $json.text }}',
+						textSplittingMode: 'simple',
+						options: {},
+					},
 				},
 			];
 			const connections = {
@@ -978,6 +986,25 @@ async function main() {
 
 			const run = await createAndRunRaw('e2e-vector-insert', nodes, connections);
 			assertEqual(run.status, 'success', `vector insert failed: ${run.error?.message ?? ''}`);
+		});
+
+		const queryVectorStoreNode = (name, mode, extraParams, position) => ({
+			id: name,
+			name,
+			type: `${PACKAGE_NAME}.vectorStoreCouchbaseQuery`,
+			typeVersion: 1,
+			position,
+			credentials: { couchbaseApi: { id: credentialId, name: 'E2E Couchbase' } },
+			parameters: {
+				mode,
+				couchbaseBucket: rl(CB.bucket),
+				couchbaseScope: rl(CB.scope),
+				couchbaseCollection: rl(CB.collection),
+				distanceStrategy: 'dot',
+				embedding: 'embedding',
+				textFieldKey: 'text',
+				...extraParams,
+			},
 		});
 
 		await test('retrieves the inserted document by semantic search', async () => {
@@ -1005,6 +1032,64 @@ async function main() {
 			}
 			throw new Error(
 				`vector search never returned the inserted document; last status=${last?.status} ` +
+					`error=${last?.error?.message ?? 'none'} ` +
+					`output=${JSON.stringify(last?.output?.Load ?? []).slice(0, 400)}`,
+			);
+		});
+
+		// Probed against Couchbase directly rather than through the node: the node
+		// reports every query failure as a bare "ParsingFailureError", which cannot be
+		// told apart from a genuinely unsupported function.
+		const supportsSqlppVectors = (() => {
+			const res = spawnSync(
+				'docker',
+				[
+					'compose', '-f', COMPOSE_FILE, 'exec', '-T', 'couchbase',
+					'curl', '-s', '-u', `${CB.username}:${CB.password}`,
+					'http://127.0.0.1:8093/query/service',
+					'--data-urlencode',
+					'statement=SELECT APPROX_VECTOR_DISTANCE([0.1,0.2],[0.1,0.2],"L2") AS d',
+				],
+				{ encoding: 'utf8' },
+			);
+			// "Invalid function" means the server predates SQL++ vector search entirely.
+			// Any other error (e.g. a bad field specification) means it is supported.
+			return !/invalid function/i.test(res.stdout ?? '');
+		})();
+
+		if (!supportsSqlppVectors) {
+			skip(
+				'Couchbase Query Vector Store (VectorStoreCouchbaseQuery)',
+				'This Couchbase Server has no APPROX_VECTOR_DISTANCE function, which the ' +
+					'node requires. It arrived in Couchbase Server 8.0 — 7.6.x does not have it.',
+				'Re-run against 8.0 or newer: `COUCHBASE_IMAGE=couchbase:enterprise-8.0.1 pnpm test:e2e`.',
+			);
+		} else await test('Query vector store retrieves via SQL++ vector distance', async () => {
+			// Same documents, different service: this node searches with SQL++
+			// APPROX_VECTOR_DISTANCE rather than the Search service.
+			const deadline = Date.now() + Number(process.env.E2E_VECTOR_TIMEOUT_MS ?? 180000);
+			let last;
+			while (Date.now() < deadline) {
+				const nodes = [
+					{ id: 'T', name: 'T', type: 'n8n-nodes-base.manualTrigger', typeVersion: 1, position: [0, 0], parameters: {} },
+					queryVectorStoreNode(
+						'Load',
+						'load',
+						{ prompt: 'Which resort is on the north shore?', topK: 3, includeDocumentMetadata: true, options: {} },
+						[220, 0],
+					),
+					embeddingsNode('Embeddings', [220, 220]),
+				];
+				const connections = {
+					T: { main: [[{ node: 'Load', type: 'main', index: 0 }]] },
+					Embeddings: subNodeConnection('ai_embedding', ['Load']),
+				};
+				last = await createAndRunRaw('e2e-vector-query-load', nodes, connections);
+				if (last.status === 'success' && JSON.stringify(last.output.Load ?? []).includes(marker)) return;
+				await new Promise((r) => setTimeout(r, 5000));
+			}
+			throw new Error(
+				`SQL++ vector search never returned the inserted document; last status=${last?.status} ` +
 					`error=${last?.error?.message ?? 'none'} ` +
 					`output=${JSON.stringify(last?.output?.Load ?? []).slice(0, 400)}`,
 			);

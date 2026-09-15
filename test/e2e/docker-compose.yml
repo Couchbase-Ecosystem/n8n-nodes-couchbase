@@ -5,7 +5,10 @@ name: n8n-nodes-couchbase-e2e
 
 services:
   couchbase:
-    image: couchbase/server:${COUCHBASE_IMAGE_TAG:-enterprise-7.6.3}
+    # Couchbase Server 8.0+ is required to exercise the Couchbase Query Vector Store
+    # node: it builds SQL++ around APPROX_VECTOR_DISTANCE, which does not exist on
+    # 7.6.x. Everything else in the suite runs fine on 7.6.
+    image: ${COUCHBASE_IMAGE:-couchbase:enterprise-8.0.1}
     # No published ports: provisioning runs via `docker compose exec`, and n8n
     # reaches the cluster over the compose network.
     healthcheck:

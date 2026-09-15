@@ -101,6 +101,10 @@ jobs:
     needs: [verify, gate, e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Must match the "Environment name" on the npm trusted publisher config, if one is
+    # set there — npm checks the OIDC environment claim. Renaming this without updating
+    # npm (or vice versa) breaks publishing. The environment is created automatically on
+    # first run; only protection rules (e.g. required reviewers) need repo admin.
     environment: release
     permissions:
       # Required for trusted publishing (OIDC) and for automatic provenance.

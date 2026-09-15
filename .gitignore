@@ -16,3 +16,6 @@ n8n-nodes-couchbase-*.tgz
 **/.env
 **/.env.*
 !**/.env.example
+
+# Self-signed certificate the E2E registry serves; regenerated on each run.
+test/e2e/certs/

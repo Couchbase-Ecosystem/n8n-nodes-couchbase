@@ -39,10 +39,27 @@ describe('n8n community package manifest', () => {
 		expect(pkg.n8n.credentials.length).toBeGreaterThan(0);
 	});
 
-	it('keeps n8n-workflow out of runtime dependencies', () => {
-		// n8n supplies n8n-workflow at runtime. Listing it as a real dependency makes npm
-		// install a second copy (and its native isolated-vm) into ~/.n8n/nodes.
-		expect(Object.keys(pkg.dependencies ?? {})).not.toContain('n8n-workflow');
+	// n8n exposes its own node_modules to community nodes via NODE_PATH, so these resolve
+	// to n8n's copies at runtime. Bundling any of them installs a second copy, and then
+	// every `instanceof` check across the n8n/community-node boundary silently fails —
+	// which is exactly how the vector stores' "retrieve" mode broke (see TESTING.md).
+	const PROVIDED_BY_N8N = [
+		'@langchain/classic',
+		'@langchain/community',
+		'@langchain/core',
+		'@langchain/textsplitters',
+		'n8n-workflow',
+	];
+
+	it.each(PROVIDED_BY_N8N)('does not ship %s as a runtime dependency', (name) => {
+		expect(Object.keys(pkg.dependencies ?? {})).not.toContain(name);
+	});
+
+	it.each(PROVIDED_BY_N8N)('declares %s as an optional peer', (name) => {
+		// Without `optional: true`, npm 7+ auto-installs the peer and the duplicate
+		// copy comes straight back.
+		expect(pkg.peerDependencies?.[name]).toBeDefined();
+		expect(pkg.peerDependenciesMeta?.[name]?.optional).toBe(true);
 	});
 });
 

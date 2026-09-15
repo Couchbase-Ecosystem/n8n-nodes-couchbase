@@ -42,8 +42,48 @@ pnpm build
 
 echo "==> packing"
 rm -f "$ROOT"/n8n-nodes-couchbase-*.tgz
-TARBALL="$(npm pack --ignore-scripts --silent | tail -1)"
-echo "    $TARBALL"
+BASE_TARBALL="$(npm pack --ignore-scripts --silent | tail -1)"
+
+# The build under test is published under a version that cannot exist on the public
+# registry, and the suite asserts n8n installed exactly that version. If n8n ever falls
+# back to registry.npmjs.org, the install fails loudly instead of quietly testing a
+# published release — which is a mistake this harness has already made once.
+E2E_LOCAL_VERSION="$(node -p "
+  const v = require('./package.json').version.split('.');
+  v[2] = String(Number(v[2]) + 1);
+  v.join('.') + '-e2e.' + Date.now();
+")"
+export E2E_LOCAL_VERSION
+
+STAGE="$(mktemp -d)"
+tar -xzf "$BASE_TARBALL" -C "$STAGE"
+rm -f "$BASE_TARBALL"
+node -e "
+  const fs = require('fs');
+  const file = process.argv[1] + '/package/package.json';
+  const pkg = JSON.parse(fs.readFileSync(file, 'utf8'));
+  pkg.version = process.argv[2];
+  fs.writeFileSync(file, JSON.stringify(pkg, null, 2));
+" "$STAGE" "$E2E_LOCAL_VERSION"
+( cd "$STAGE/package" && npm pack --ignore-scripts --silent >/dev/null )
+mv "$STAGE/package"/*.tgz "$ROOT/"
+rm -rf "$STAGE"
+TARBALL="$(ls "$ROOT"/n8n-nodes-couchbase-*.tgz | head -1)"
+echo "    $TARBALL (version $E2E_LOCAL_VERSION)"
+
+echo "==> generating the registry certificate"
+# Verdaccio impersonates registry.npmjs.org, so it needs a certificate for that name.
+# Self-signed is fine: npm inside n8n runs with strict-ssl disabled.
+mkdir -p "$HERE/certs"
+if [[ ! -f "$HERE/certs/registry-cert.pem" ]]; then
+  openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
+    -keyout "$HERE/certs/registry-key.pem" \
+    -out "$HERE/certs/registry-cert.pem" \
+    -subj "/CN=registry.npmjs.org" \
+    -addext "subjectAltName=DNS:registry.npmjs.org,DNS:verdaccio,DNS:localhost,IP:127.0.0.1" \
+    >/dev/null 2>&1
+fi
+chmod 644 "$HERE/certs/registry-key.pem" "$HERE/certs/registry-cert.pem"
 
 echo "==> starting the stack (couchbase, verdaccio, n8n)"
 "${COMPOSE[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
@@ -55,8 +95,9 @@ echo "==> provisioning couchbase"
 echo "==> publishing $TARBALL to the local registry"
 NPMRC="$(mktemp)"
 echo "//127.0.0.1:${VERDACCIO_PORT}/:_authToken=e2e-anonymous" > "$NPMRC"
+echo "strict-ssl=false" >> "$NPMRC"
 NPM_CONFIG_USERCONFIG="$NPMRC" npm publish "$TARBALL" \
-  --registry "http://127.0.0.1:${VERDACCIO_PORT}" >/dev/null
+  --registry "http://127.0.0.1:${VERDACCIO_PORT}" --tag latest >/dev/null
 echo "    published"
 
 # Also publish the previous release, so the suite can install that first and then

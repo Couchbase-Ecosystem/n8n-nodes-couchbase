@@ -267,6 +267,31 @@ async function resourceLocatorResults(path, methodName, currentNodeParameters, c
 	return res.results ?? [];
 }
 
+/** Restarts the n8n container and waits for it to come back healthy. */
+async function restartN8n() {
+	spawnSync('docker', ['compose', '-f', COMPOSE_FILE, 'restart', 'n8n'], { encoding: 'utf8' });
+	const deadline = Date.now() + 180000;
+	while (Date.now() < deadline) {
+		try {
+			const res = await fetch(`${N8N_URL}/healthz`);
+			if (res.ok) {
+				// The old session cookie does not survive the restart, and n8n answers 404
+				// rather than 401 on these routes when unauthenticated.
+				cookie = '';
+				await api('/rest/login', {
+					method: 'POST',
+					body: { emailOrLdapLoginId: OWNER.email, password: OWNER.password },
+				});
+				return;
+			}
+		} catch {
+			/* still coming up */
+		}
+		await new Promise((r) => setTimeout(r, 2000));
+	}
+	throw new Error('n8n did not come back healthy after a restart');
+}
+
 /** Creates and executes an arbitrary workflow (main + AI sub-node connections). */
 async function createAndRunRaw(name, nodes, connections) {
 	const wf = await api('/rest/workflows', {
@@ -319,11 +344,15 @@ async function main() {
 	});
 
 	const PREVIOUS_VERSION = process.env.E2E_PREVIOUS_VERSION ?? '';
-	const LOCAL_VERSION = execFileSync(
-		'node',
-		['-p', 'require("./package.json").version'],
-		{ encoding: 'utf8', cwd: new URL('../..', import.meta.url).pathname },
-	).trim();
+	// run.sh republishes the build under test as <next-patch>-e2e.<timestamp>, a version
+	// that cannot exist on the public registry. Asserting on it is what proves n8n
+	// installed *this* working tree rather than a published release.
+	const LOCAL_VERSION =
+		process.env.E2E_LOCAL_VERSION ??
+		execFileSync('node', ['-p', 'require("./package.json").version'], {
+			encoding: 'utf8',
+			cwd: new URL('../..', import.meta.url).pathname,
+		}).trim();
 
 	if (PREVIOUS_VERSION) {
 		// Install the previous release first, then let n8n upgrade it to the build under
@@ -358,24 +387,63 @@ async function main() {
 			assert(ours.length > 0, 'the previous release loaded no node types');
 		});
 
-		await test(`upgrades ${PREVIOUS_VERSION} -> ${LOCAL_VERSION} in place`, async () => {
+		let upgradeError = null;
+		try {
 			installed = await api('/rest/community-packages', {
 				method: 'PATCH',
 				body: { name: PACKAGE_NAME, version: LOCAL_VERSION },
 			});
-			assertEqual(
-				installed.installedVersion,
-				LOCAL_VERSION,
-				'n8n did not report the upgraded version',
-			);
-		});
+		} catch (err) {
+			upgradeError = err;
+		}
 
-		await test('the upgrade is reflected in the installed package list', async () => {
-			const packages = await api('/rest/community-packages');
-			const entry = (packages ?? []).find((p) => p.packageName === PACKAGE_NAME);
-			assert(entry, 'the package is missing from the installed list after upgrade');
-			assertEqual(entry.installedVersion, LOCAL_VERSION, 'installed list shows the wrong version');
-		});
+		// Upgrading in place from a release that bundled @langchain/core fails inside a
+		// running n8n: Node cached the old resolved path to the bundled copy, and the new
+		// version no longer has it there. A restart clears it. This is a one-off for the
+		// release that removes the bundled copy — deduped-to-deduped upgrades are fine —
+		// so the check disappears on its own once that release is out.
+		const STALE_MODULE_CACHE = /Cannot find module[\s\S]*@langchain|could not be loaded/;
+
+		if (upgradeError && STALE_MODULE_CACHE.test(upgradeError.message)) {
+			skip(
+				'In-place upgrade from a release that bundled @langchain/core',
+				'n8n could not load the new version in its running process: Node had cached ' +
+					'the old path to the bundled @langchain/core, which this version no longer ' +
+					'ships. n8n then deletes the package directory. Restarting n8n fixes it, and ' +
+					'the suite does that below to continue.',
+				'Upgrade the node in n8n, then restart n8n and confirm it loads. Worth a release ' +
+					'note for the first version that drops the bundled copy.',
+			);
+			await restartN8n();
+			installed = await api('/rest/community-packages', {
+				method: 'POST',
+				body: { name: PACKAGE_NAME, version: LOCAL_VERSION },
+			});
+			await test('installs cleanly once n8n has restarted', async () => {
+				assertEqual(
+					installed.installedVersion,
+					LOCAL_VERSION,
+					'the build under test did not install after the restart',
+				);
+			});
+		} else {
+			await test(`upgrades ${PREVIOUS_VERSION} -> ${LOCAL_VERSION} in place`, async () => {
+				if (upgradeError) throw upgradeError;
+				assertEqual(
+					installed.installedVersion,
+					LOCAL_VERSION,
+					'n8n did not upgrade to the build under test — if this is a published ' +
+						'version number, it has fallen back to the public npm registry',
+				);
+			});
+
+			await test('the upgrade is reflected in the installed package list', async () => {
+				const packages = await api('/rest/community-packages');
+				const entry = (packages ?? []).find((p) => p.packageName === PACKAGE_NAME);
+				assert(entry, 'the package is missing from the installed list after upgrade');
+				assertEqual(entry.installedVersion, LOCAL_VERSION, 'installed list shows the wrong version');
+			});
+		}
 	} else {
 		skip(
 			'Upgrading from a previously published release',
@@ -398,7 +466,12 @@ async function main() {
 				if (!installed) throw err;
 			}
 			assertEqual(installed.packageName, PACKAGE_NAME, 'installed package name mismatch');
-			assert(installed.installedVersion, 'n8n reported no installed version');
+			assertEqual(
+				installed.installedVersion,
+				LOCAL_VERSION,
+				'n8n installed a different version than the build under test — it has ' +
+					'probably fallen back to the public npm registry',
+			);
 		});
 	}
 

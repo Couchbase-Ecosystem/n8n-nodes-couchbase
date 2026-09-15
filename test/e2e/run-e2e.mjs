@@ -318,21 +318,89 @@ async function main() {
 		assertEqual(me.email, OWNER.email, 'not authenticated as the expected user');
 	});
 
-	await test('installs the package through n8n\'s community-package installer', async () => {
-		try {
-			installed = await api('/rest/community-packages', {
+	const PREVIOUS_VERSION = process.env.E2E_PREVIOUS_VERSION ?? '';
+	const LOCAL_VERSION = execFileSync(
+		'node',
+		['-p', 'require("./package.json").version'],
+		{ encoding: 'utf8', cwd: new URL('../..', import.meta.url).pathname },
+	).trim();
+
+	if (PREVIOUS_VERSION) {
+		// Install the previous release first, then let n8n upgrade it to the build under
+		// test — the path an existing user actually takes, which a clean install never
+		// exercises.
+		await test(`installs the previous release (${PREVIOUS_VERSION})`, async () => {
+			// A kept stack may already have the package installed from an earlier run;
+			// start from nothing so the upgrade is genuinely an upgrade.
+			try {
+				await api(`/rest/community-packages?name=${encodeURIComponent(PACKAGE_NAME)}`, {
+					method: 'DELETE',
+				});
+			} catch {
+				/* not installed yet, which is the normal case on a fresh stack */
+			}
+
+			const result = await api('/rest/community-packages', {
 				method: 'POST',
-				body: { name: PACKAGE_NAME },
+				body: { name: PACKAGE_NAME, version: PREVIOUS_VERSION },
 			});
-		} catch (err) {
-			// Already installed (re-run against a kept stack) — fall back to the listing.
+			assertEqual(result.packageName, PACKAGE_NAME, 'installed package name mismatch');
+			assertEqual(
+				result.installedVersion,
+				PREVIOUS_VERSION,
+				'n8n did not install the requested previous version',
+			);
+		});
+
+		await test('the previous release registers its nodes', async () => {
+			const types = await api('/types/nodes.json');
+			const ours = types.filter((t) => String(t.name).startsWith(`${PACKAGE_NAME}.`));
+			assert(ours.length > 0, 'the previous release loaded no node types');
+		});
+
+		await test(`upgrades ${PREVIOUS_VERSION} -> ${LOCAL_VERSION} in place`, async () => {
+			installed = await api('/rest/community-packages', {
+				method: 'PATCH',
+				body: { name: PACKAGE_NAME, version: LOCAL_VERSION },
+			});
+			assertEqual(
+				installed.installedVersion,
+				LOCAL_VERSION,
+				'n8n did not report the upgraded version',
+			);
+		});
+
+		await test('the upgrade is reflected in the installed package list', async () => {
 			const packages = await api('/rest/community-packages');
-			installed = (packages ?? []).find((p) => p.packageName === PACKAGE_NAME);
-			if (!installed) throw err;
-		}
-		assertEqual(installed.packageName, PACKAGE_NAME, 'installed package name mismatch');
-		assert(installed.installedVersion, 'n8n reported no installed version');
-	});
+			const entry = (packages ?? []).find((p) => p.packageName === PACKAGE_NAME);
+			assert(entry, 'the package is missing from the installed list after upgrade');
+			assertEqual(entry.installedVersion, LOCAL_VERSION, 'installed list shows the wrong version');
+		});
+	} else {
+		skip(
+			'Upgrading from a previously published release',
+			'No previous release was published into the local registry — either none exists ' +
+				'or npmjs could not be reached while setting the stack up.',
+			'Run the suite with network access to npmjs, or install an older version in n8n ' +
+				'by hand and use the Update button on the community nodes settings page.',
+		);
+
+		await test("installs the package through n8n's community-package installer", async () => {
+			try {
+				installed = await api('/rest/community-packages', {
+					method: 'POST',
+					body: { name: PACKAGE_NAME },
+				});
+			} catch (err) {
+				// Already installed (re-run against a kept stack) — fall back to the listing.
+				const packages = await api('/rest/community-packages');
+				installed = (packages ?? []).find((p) => p.packageName === PACKAGE_NAME);
+				if (!installed) throw err;
+			}
+			assertEqual(installed.packageName, PACKAGE_NAME, 'installed package name mismatch');
+			assert(installed.installedVersion, 'n8n reported no installed version');
+		});
+	}
 
 	await test('registers every node the package declares', async () => {
 		const declared = JSON.parse(

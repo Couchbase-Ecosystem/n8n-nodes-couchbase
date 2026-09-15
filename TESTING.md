@@ -100,6 +100,11 @@ The flow mirrors what a user does in the n8n UI:
 2. The tarball is published to a throwaway **Verdaccio** registry. Verdaccio is configured
    to proxy npmjs for everything *except* `n8n-nodes-couchbase` — otherwise the E2E would
    silently install the released version instead of the build under test.
+
+   The most recent release older than the local version is also fetched from npmjs and
+   published alongside it, under the `previous` dist-tag (npm refuses to move `latest`
+   backwards, and `latest` has to stay on the build under test). That is what makes the
+   upgrade test possible.
 3. n8n installs it via `POST /rest/community-packages` — **n8n's own installer**, not a
    hand-rolled `npm install`.
 4. The suite asserts n8n registered every node the package declares and that the editor
@@ -125,7 +130,11 @@ community licence.
 
 ### What the E2E asserts
 
-**Install** — owner setup, package install, node-type registration, editor visibility.
+**Install & upgrade** — owner setup; installing the *previous published release*; then
+letting n8n upgrade it in place to the build under test via `PATCH /rest/community-packages`,
+checking the reported version and the installed-package list; node-type registration and
+editor visibility. A clean install never exercises the upgrade path an existing user
+actually takes, so the suite installs the old version first.
 
 **Function** — create → read → delete round-trip; SQL++ query convergence; upsert
 overwrite; a missing document failing the workflow; an invalid collection producing a
@@ -192,8 +201,17 @@ tests, which were the ones expected to be unreliable:
 | Transient connection blips | A single `fetch failed` against the n8n API failed a test outright | Network-level failures retry with backoff; HTTP error *statuses* are not retried, since those are real |
 
 The agent-driven tests turned out to be the *most* reliable part: `retrieve-as-tool`
-passed on every run, usually on the first attempt. Its variance is vector-index lag, not
-the model — the retrieval loop absorbs it, and the timeout is 300s (`E2E_RETRIEVAL_TIMEOUT_MS`).
+passed on every valid run, usually on the first attempt. Its variance is vector-index lag,
+not the model — the retrieval loop absorbs it, and the timeout is 300s
+(`E2E_RETRIEVAL_TIMEOUT_MS`).
+
+Each of the three fixes above was diagnosed from a real observed failure, and the runs
+immediately after each fix were clean. A longer soak was attempted but could not be
+completed: the development machine ran out of memory and the stack died mid-sequence,
+which produced whole-suite failures that say nothing about the tests. **CI is the real
+measurement.** If the vector-store section does prove unstable on a runner, the knobs are
+the timeouts above, and the fallback is to move just that section to the nightly workflow
+while the rest keeps gating pull requests.
 
 ### Skips are loud by design
 
@@ -210,13 +228,13 @@ Two things can trigger a skip:
 | --- | --- | --- |
 | Vector store nodes | `OPENAI_API_KEY` unset — **always the case on forked pull requests**, where GitHub does not expose repository secrets | Vector store behaviour unverified; validate manually or re-run on a branch |
 | Couchbase Query Vector Store | Server has no `APPROX_VECTOR_DISTANCE` (anything before 8.0) | That one node unverified; the rest still runs |
-| Vector stores in `retrieve` mode | The known `@langchain/core` duplication bug (finding 8) is still present | That mode unverified; re-enables itself when fixed |
+| Vector stores in `retrieve` mode | The known `@langchain/core` duplication bug (finding 7) is still present | That mode unverified; re-enables itself when fixed |
+| Upgrade from previous release | npmjs unreachable, or no older release exists | Upgrade path unverified; clean install is tested instead |
 
 ### Remaining blind spots
 
 | Gap | Risk if it breaks |
 | --- | --- |
-| Upgrading from a previously installed version | A broken upgrade path in the n8n UI; the E2E always installs fresh. Would need the previous release published into Verdaccio alongside the local build, then `PATCH /rest/community-packages` |
 | Node `typeVersion` 1 vs 2 | Low — `execute()` has no version branching, so both behave identically (verified by inspection) |
 
 ## Adding coverage for another node or mode

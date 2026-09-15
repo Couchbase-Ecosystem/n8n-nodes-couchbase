@@ -1,0 +1,176 @@
+name: Release
+
+# Publishing is triggered by pushing a tag that matches the version in package.json,
+# which is the convention this repo already follows (v1.2.0 … v1.3.2).
+#
+# Authentication uses npm trusted publishing (OIDC): there is no NPM_TOKEN to store or
+# rotate, and npm attaches provenance automatically — which is what n8n's community
+# package scanner requires (see verify-published.yml, which runs it after release).
+#
+# One-time setup on npmjs.com: add a trusted publisher for `n8n-nodes-couchbase` pointing
+# at this repository and `.github/workflows/release.yml`, with direct publishing enabled.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run the full pipeline but stop short of publishing'
+        type: boolean
+        required: false
+        default: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify the release is publishable
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      npm_tag: ${{ steps.check.outputs.npm_tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+
+      - name: Check version, tag and npm state
+        id: check
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          NAME="$(node -p "require('./package.json').name")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          # A tag that disagrees with package.json is the most common release slip.
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            TAG_VERSION="${GITHUB_REF_NAME#v}"
+            if [[ "$TAG_VERSION" != "$VERSION" ]]; then
+              echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $VERSION"
+              exit 1
+            fi
+            echo "Tag $GITHUB_REF_NAME matches package.json version $VERSION"
+          else
+            echo "::notice::Not a tag build; skipping the tag/version match check"
+          fi
+
+          # Publishing is effectively irreversible, so fail early rather than on `npm publish`.
+          if npm view "$NAME@$VERSION" version --registry https://registry.npmjs.org >/dev/null 2>&1; then
+            echo "::error::$NAME@$VERSION is already published"
+            exit 1
+          fi
+          echo "$NAME@$VERSION is not yet on npm"
+
+          # A prerelease must never become the `latest` anyone installs by default.
+          if [[ "$VERSION" == *-* ]]; then
+            echo "npm_tag=next" >> "$GITHUB_OUTPUT"
+            echo "::notice::Prerelease detected; will publish under the 'next' dist-tag"
+          else
+            echo "npm_tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Confirm provenance requirements
+        run: |
+          # npm refuses to attach provenance if the repository URL does not match the
+          # repository doing the publishing.
+          REPO_URL="$(node -p "require('./package.json').repository?.url ?? ''")"
+          case "$REPO_URL" in
+            *"$GITHUB_REPOSITORY"*) echo "repository.url matches $GITHUB_REPOSITORY" ;;
+            *) echo "::error::package.json repository.url ($REPO_URL) does not match $GITHUB_REPOSITORY; provenance will fail"; exit 1 ;;
+          esac
+
+  gate:
+    name: Static checks and tests
+    needs: verify
+    uses: ./.github/workflows/ci.yml
+
+  e2e:
+    name: End-to-end
+    needs: verify
+    uses: ./.github/workflows/e2e.yml
+    secrets: inherit
+
+  publish:
+    name: Publish to npm
+    needs: [verify, gate, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: release
+    permissions:
+      # Required for trusted publishing (OIDC) and for automatic provenance.
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Trusted publishing needs Node >= 22.14; 24 also ships an npm new enough.
+          node-version: '24.x'
+          registry-url: 'https://registry.npmjs.org'
+          cache: pnpm
+
+      - name: Ensure npm supports trusted publishing
+        run: |
+          npm install -g npm@latest
+          npm --version
+
+      - name: Install dependencies
+        # `prepublishOnly` runs `pnpm build && pnpm lint:prepublish`, so the toolchain
+        # has to be present even though publishing itself uses npm.
+        run: pnpm install --frozen-lockfile
+
+      - name: Publish (dry run)
+        if: ${{ inputs.dry_run }}
+        run: npm publish --dry-run --tag ${{ needs.verify.outputs.npm_tag }}
+
+      - name: Publish
+        if: ${{ !inputs.dry_run }}
+        run: npm publish --tag ${{ needs.verify.outputs.npm_tag }}
+
+  github-release:
+    name: Create the GitHub release
+    needs: [verify, publish]
+    if: ${{ github.ref_type == 'tag' && !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          PRERELEASE=""
+          [[ "${{ needs.verify.outputs.version }}" == *-* ]] && PRERELEASE="--prerelease"
+
+          # draft-release.yml keeps a draft for this version up to date on every merge.
+          # Publish that draft rather than generating fresh notes, so any wording edited
+          # by hand before releasing survives.
+          STATE="$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft 2>/dev/null || echo none)"
+
+          if [[ "$STATE" == "true" ]]; then
+            echo "Publishing the existing draft for $GITHUB_REF_NAME"
+            gh release edit "$GITHUB_REF_NAME" --draft=false --tag "$GITHUB_REF_NAME" $PRERELEASE
+          elif [[ "$STATE" == "false" ]]; then
+            echo "::notice::$GITHUB_REF_NAME is already published; nothing to do"
+          else
+            echo "No draft found for $GITHUB_REF_NAME; generating notes now"
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes \
+              $PRERELEASE
+          fi

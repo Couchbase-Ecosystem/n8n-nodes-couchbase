@@ -15,6 +15,10 @@ Everything below is arranged so that the cheapest check that can answer a questi
 | 4. E2E | n8n really installs it, and the Couchbase node really talks to Couchbase | ~5–8 min | yes | `e2e.yml` |
 | 5. Release scan | The published package passes n8n's verification scanner | ~1 min | no | `verify-published.yml` |
 
+Releases run layers 1–4 again before publishing — `release.yml` calls `ci.yml` and
+`e2e.yml` as reusable workflows rather than copying them, so the release gate cannot drift
+from the pull-request gate. See [CONTRIBUTING.md](CONTRIBUTING.md#releasing).
+
 ## Running it
 
 ```bash
@@ -280,10 +284,12 @@ Two things can trigger a skip:
 
 These came out of running the suite against the current release; none are fixed here.
 
-1. **The published package fails n8n's verification scan.**
+1. **The published package fails n8n's verification scan — addressed by `release.yml`.**
    `npx @n8n/scan-community-package n8n-nodes-couchbase@1.3.2` reports
-   *"Package was not published with npm provenance"*. This is a release-process change
-   (publish with `--provenance` from CI), not a code change, and it gates verified status.
+   *"Package was not published with npm provenance"*. Publishing by hand cannot produce
+   provenance. The release workflow publishes from CI with npm trusted publishing, which
+   attaches provenance automatically, so the next release should clear this — and
+   `verify-published.yml` checks it immediately after.
 
 2. **`n8n-workflow` is a `peerDependency`, so npm installs a second copy.** npm 7+
    auto-installs peers, so every community-node install pulls a duplicate `n8n-workflow`

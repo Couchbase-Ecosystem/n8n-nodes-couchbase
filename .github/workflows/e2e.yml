@@ -10,6 +10,8 @@ on:
   schedule:
     # Nightly, to catch breakage from new n8n releases rather than our own changes.
     - cron: '0 5 * * *'
+  # Reused by release.yml so a release runs exactly the same E2E as a PR.
+  workflow_call:
   workflow_dispatch:
     inputs:
       n8n_image_tag:

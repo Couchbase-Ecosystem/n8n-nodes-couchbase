@@ -41,7 +41,9 @@ jobs:
           - { name: arm64, runner: ubuntu-24.04-arm }
 
     env:
-      N8N_IMAGE_TAG: ${{ inputs.n8n_image_tag || 'latest' }}
+      # Pinned by docker-compose.yml so PRs test a known version; the nightly run
+      # deliberately uses `latest` to catch breakage from new n8n releases.
+      N8N_IMAGE_TAG: ${{ inputs.n8n_image_tag || (github.event_name == 'schedule' && 'latest') || '' }}
       COUCHBASE_IMAGE: ${{ inputs.couchbase_image || 'couchbase:enterprise-8.0.1' }}
       # Leave the stack up so the failure step can collect logs; torn down below.
       E2E_KEEP: '1'

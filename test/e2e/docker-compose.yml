@@ -62,7 +62,11 @@ services:
       retries: 40
 
   n8n:
-    image: docker.n8n.io/n8nio/n8n:${N8N_IMAGE_TAG:-latest}
+    # Pinned deliberately. `latest` is not reproducible: a locally cached `latest` can be
+    # months behind the one CI pulls, and the two then test different software — which has
+    # already caused a long chase where every local run passed and every CI run failed.
+    # The nightly E2E overrides this with `latest` to catch upstream drift on purpose.
+    image: docker.n8n.io/n8nio/n8n:${N8N_IMAGE_TAG:-2.39.5}
     networks: [n8nnet]
     ports:
       - '${N8N_PORT:-5678}:5678'

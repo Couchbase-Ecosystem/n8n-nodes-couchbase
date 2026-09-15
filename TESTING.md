@@ -192,8 +192,10 @@ back with a fact it could not otherwise know. `VectorStoreCouchbaseQuery` is tes
 retrieval over the same documents via SQL++. Without a key the suite **skips them loudly**
 (see below) rather than passing quietly.
 
-All five vector-store modes now pass, including `retrieve` — which was broken until the
-LangChain de-duplication described in finding 7.
+All five vector-store modes pass: insert, `load`, `update`, `retrieve` (via the Vector
+Store QA Tool) and `retrieve-as-tool`, plus binary ingestion and SQL++ vector search.
+Finding 7 records one n8n-side incompatibility with the Vector Store *Retriever* node,
+which is not the path the UI steers users towards.
 
 The update and binary tests assert against the stored Couchbase document — read back with
 the Couchbase node — rather than against a search, so they are not subject to index lag.
@@ -283,13 +285,13 @@ These came out of running the suite against the current release; none are fixed 
    *"Package was not published with npm provenance"*. This is a release-process change
    (publish with `--provenance` from CI), not a code change, and it gates verified status.
 
-2. **`n8n-workflow` was a `peerDependency`, so npm installed a second copy — now fixed.**
-   npm 7+ auto-installs peers, so every community-node install pulled a duplicate
-   `n8n-workflow` plus its native `isolated-vm` into `~/.n8n/nodes`. It worked, but it is
-   why a plain `npm install` of this package fails inside the n8n Docker image (no Python
-   or build toolchain for node-gyp). It is now an *optional* peer alongside the LangChain
-   packages, so npm leaves it alone and n8n supplies it — verified: zero duplicate copies
-   after a clean install and after an upgrade.
+2. **`n8n-workflow` is a `peerDependency`, so npm installs a second copy.** npm 7+
+   auto-installs peers, so every community-node install pulls a duplicate `n8n-workflow`
+   plus its native `isolated-vm` into `~/.n8n/nodes`. It works, but it is why a plain
+   `npm install` of this package fails inside the n8n Docker image (no Python or build
+   toolchain for node-gyp). Marking it `optional` in `peerDependenciesMeta` stops npm
+   installing it, and n8n supplies it via `NODE_PATH` — verified working, but it was
+   reverted along with the LangChain change in finding 7, so it stands unfixed.
 
 3. **SQL++ queries are eventually consistent.** A document written via KV is not
    immediately visible to a `query` operation, because the node issues queries with
@@ -316,52 +318,43 @@ These came out of running the suite against the current release; none are fixed 
    already stated the 8.0+ requirement; the top-level README did not mention Couchbase
    versions at all (and omitted the node from its list) — both now fixed.
 
-7. **`retrieve` mode was broken for both vector store nodes — now fixed.** Using either
-   Couchbase vector store in *"Retrieve Documents (As Vector Store for Chain/Tool)"* mode
-   failed with `Cannot read properties of undefined (reading 'asRetriever')`.
+7. **`retrieve` mode works; the Vector Store *Retriever* node specifically does not.**
+   An earlier version of this document claimed `retrieve` mode was broken outright. That
+   was wrong, and came from this suite wiring it to the wrong consumer.
 
-   Root cause: the package declared `@langchain/core` as a direct dependency, so a second
-   copy (1.2.11) was installed alongside n8n's (1.1.8). n8n's `RetrieverVectorStore` does:
+   `retrieve` mode supplies an `ai_vectorStore`, and two n8n nodes consume that:
 
-   ```js
-   if (vectorStore instanceof VectorStore) { retriever = vectorStore.asRetriever(topK); }
-   else { /* reranker branch */ baseRetriever: vectorStore.vectorStore.asRetriever(topK) }
-   ```
+   | Consumer | Works | Why |
+   | --- | --- | --- |
+   | **Vector Store Question Answer Tool** (`toolVectorStore`) | ✅ | Passes the store straight to `VectorStoreQATool.fromLLM` — no type check |
+   | **Vector Store Retriever** (`retrieverVectorStore`) | ❌ | Does `vectorStore instanceof VectorStore` against *n8n's* `@langchain/core` |
 
-   `instanceof` is identity-based, not shape-based. That check runs against *n8n's* copy of
-   the class, so a store built on the bundled copy failed it, fell into the reranker branch,
-   and dereferenced `vectorStore.vectorStore` — undefined.
+   The QA tool is what the n8n UI steers you towards and what real workflows use, so this
+   is not a practical blocker — the E2E covers that path and it passes.
 
-   **The fix, and why it took the shape it did.** Simply moving the LangChain packages to
-   optional peers de-duplicates, but then `VectorStoreCouchbaseSearch` will not load at all:
-   n8n's `@langchain/community` does `require('couchbase')` from *n8n's* module tree, and
-   n8n does not ship the Couchbase driver. Bundling `@langchain/community` to solve that
-   drags `@langchain/core` straight back in, because it declares core as a peer (`^1.1.27`)
-   which npm auto-installs.
+   The Retriever path fails because `instanceof` is identity-based: this package bundles
+   its own `@langchain/core`, so a store built from it fails a check made against n8n's
+   copy, falls into the reranker branch, and dereferences `vectorStore.vectorStore` —
+   undefined, surfacing as `Cannot read properties of undefined (reading 'asRetriever')`.
 
-   So the two Couchbase vector store classes are now **vendored** into
-   `nodes/vector_store/shared/vendor/` (from `@langchain/community`, MIT, with attribution
-   headers). They extend *n8n's* `@langchain/core` while using *this package's* `couchbase`
-   driver, which satisfies both constraints. The LangChain packages and `n8n-workflow` are
-   optional peer dependencies; `langchain` is gone entirely, since its only use
-   (`langchain/output_parsers`, which no longer exists in langchain v1) moved to
-   `@langchain/classic/output_parsers`.
+   De-duplicating `@langchain/core` does fix it, and was tried — but it is not viable: on
+   n8n 2.39.5 only `@langchain/core` and `n8n-workflow` are exposed to community nodes via
+   `NODE_PATH`, while `@langchain/classic` and `@langchain/community` are not. The package
+   must bundle those, and both peer-depend on `@langchain/core`, which npm then installs —
+   putting the duplicate straight back. That attempt was reverted.
 
-   The package-contract suite pins the dependency layout, and the E2E test for `retrieve`
-   mode re-enabled itself the moment the fix landed — which is how it was verified.
+   Since the supported path works, this is worth reporting to n8n rather than working
+   around here: duck-typing on `asRetriever` instead of `instanceof` would fix it for every
+   community vector store. Until then, a user who wires **Vector Store Retriever** instead
+   of the QA tool gets a confusing error.
 
-   Keep the vendored files in sync if upstream changes them.
-
-8. **Upgrading in place to the first deduped release needs an n8n restart.** n8n loads
-   community packages in its own long-running process, and Node caches the resolved path
-   to the bundled `@langchain/core` from the previously installed version. The new version
-   no longer ships it there, so the load fails — and n8n *deletes the package directory* in
-   response. Restarting n8n clears the cache and it installs cleanly.
-
-   This is a one-off for the release that removes the bundled copy; later
-   deduped-to-deduped upgrades are unaffected. The E2E detects the signature, reports it as
-   a loud skip, restarts n8n and carries on, and the check disappears on its own once that
-   release is published. **Worth a release note.**
+8. **`latest` is not a reproducible target, and testing against it silently wasted days.**
+   The E2E used `docker.n8n.io/n8nio/n8n:latest`. A locally cached `latest` was **n8n
+   2.9.4** (months old) while CI pulled **2.39.5** — so local runs and CI were testing
+   different software, every local run passed, every CI run failed, and three separate
+   "fixes" were made against the wrong version. The compose file now pins the version, the
+   nightly run overrides it with `latest` on purpose to catch upstream drift, and
+   `run.sh` prints the n8n and Couchbase versions at the start of every run.
 
 9. **The Couchbase node discards query error details.** A failing SQL++ query surfaces as
    `Query failed with error: ParsingFailureError: parsing failure`; the server's actual

@@ -267,29 +267,181 @@ async function resourceLocatorResults(path, methodName, currentNodeParameters, c
 	return res.results ?? [];
 }
 
-/** Restarts the n8n container and waits for it to come back healthy. */
+/** Runs a docker compose command against the E2E stack. */
+function compose(args) {
+	return spawnSync('docker', ['compose', '-f', COMPOSE_FILE, ...args], { encoding: 'utf8' });
+}
+
+/** Runs a shell snippet inside the n8n container. */
+function n8nSh(script) {
+	return compose(['exec', '-T', 'n8n', 'sh', '-c', script]).stdout?.trim() ?? '';
+}
+
+/** The n8n container's start time, used to prove a restart actually happened. */
+function n8nStartedAt() {
+	const id = compose(['ps', '-q', 'n8n']).stdout?.trim();
+	if (!id) return null;
+	return (
+		spawnSync('docker', ['inspect', '-f', '{{.State.StartedAt}}', id], {
+			encoding: 'utf8',
+		}).stdout?.trim() || null
+	);
+}
+
+/** Snapshot of the installed tree, for when a failure needs explaining. */
+function describeInstallTree() {
+	return n8nSh(
+		'B=/home/node/.n8n/nodes/node_modules/n8n-nodes-couchbase; ' +
+			'echo "package dir      : $(test -d $B && echo present || echo absent)"; ' +
+			'echo "nested @langchain: $(ls $B/node_modules/@langchain 2>/dev/null | tr \'\\n\' \' \')"; ' +
+			'echo "nested core files: $(ls $B/node_modules/@langchain/core 2>/dev/null | tr \'\\n\' \' \')"; ' +
+			'echo "nested core dist : $(ls $B/node_modules/@langchain/core/dist 2>/dev/null | head -8 | tr \'\\n\' \' \')"; ' +
+			'echo "top-level modules: $(ls /home/node/.n8n/nodes/node_modules 2>/dev/null | tr \'\\n\' \' \')"',
+	);
+}
+
+/** Restarts the n8n container, proving it really restarted before carrying on. */
 async function restartN8n() {
-	spawnSync('docker', ['compose', '-f', COMPOSE_FILE, 'restart', 'n8n'], { encoding: 'utf8' });
+	const before = n8nStartedAt();
+
+	const result = compose(['restart', 'n8n']);
+	if (result.status !== 0) {
+		throw new Error(
+			`docker compose restart n8n failed (exit ${result.status}): ${result.stderr ?? ''}`,
+		);
+	}
+
+	// Waiting on /healthz alone is not enough to know a restart happened: the old
+	// process can still be up and answering for a moment after the restart is issued,
+	// and we would carry on talking to the very process we were trying to replace.
 	const deadline = Date.now() + 180000;
+	let restarted = false;
+	while (Date.now() < deadline) {
+		const now = n8nStartedAt();
+		if (now && now !== before) {
+			restarted = true;
+			break;
+		}
+		await new Promise((r) => setTimeout(r, 1000));
+	}
+	if (!restarted) {
+		throw new Error('n8n never reported a new start time, so it did not actually restart');
+	}
+
 	while (Date.now() < deadline) {
 		try {
 			const res = await fetch(`${N8N_URL}/healthz`);
-			if (res.ok) {
-				// The old session cookie does not survive the restart, and n8n answers 404
-				// rather than 401 on these routes when unauthenticated.
-				cookie = '';
-				await api('/rest/login', {
-					method: 'POST',
-					body: { emailOrLdapLoginId: OWNER.email, password: OWNER.password },
-				});
-				return;
-			}
+			if (res.ok) break;
 		} catch {
 			/* still coming up */
 		}
 		await new Promise((r) => setTimeout(r, 2000));
 	}
-	throw new Error('n8n did not come back healthy after a restart');
+
+	// /healthz answers before the REST routes are mounted, and the old session cookie
+	// does not survive the restart — n8n answers 404 rather than 401 when unauthenticated.
+	cookie = '';
+	for (let attempt = 1; attempt <= 30; attempt++) {
+		try {
+			await api('/rest/login', {
+				method: 'POST',
+				body: { emailOrLdapLoginId: OWNER.email, password: OWNER.password },
+			});
+			return;
+		} catch {
+			await new Promise((r) => setTimeout(r, 2000));
+		}
+	}
+	throw new Error('n8n restarted but its REST API never accepted a login');
+}
+
+/**
+ * Clears any registration, wipes the package directory, and installs `version` fresh.
+ *
+ * Deliberately never attempts an update: once an upgrade has failed to load, retrying it
+ * re-runs the same failing path and leaves that n8n process unable to install any version
+ * at all until it restarts.
+ *
+ * It also does not trust n8n's own cleanup. A failed load triggers n8n's
+ * `deletePackageDirectory`, but if that leaves a partially removed dependency tree behind,
+ * npm will not repair what it no longer manages — a stale nested `@langchain/core` with a
+ * package.json but no `dist/` resolves ahead of n8n's copy and fails with a missing-file
+ * error. Removing the directory outright makes the recovery independent of whatever state
+ * n8n left things in.
+ */
+async function reinstallClean(version) {
+	await api(`/rest/community-packages?name=${encodeURIComponent(PACKAGE_NAME)}`, {
+		method: 'DELETE',
+	}).catch(() => undefined);
+
+	compose([
+		'exec',
+		'-T',
+		'n8n',
+		'rm',
+		'-rf',
+		`/home/node/.n8n/nodes/node_modules/${PACKAGE_NAME}`,
+	]);
+
+	try {
+		return await api('/rest/community-packages', {
+			method: 'POST',
+			body: { name: PACKAGE_NAME, version },
+		});
+	} catch (err) {
+		// If this still fails, say what was actually on disk rather than leaving the next
+		// person to guess at it.
+		const tree = describeInstallTree()
+			.split('\n')
+			.map((line) => `        ${line}`)
+			.join('\n');
+		throw new Error(`${err.message}\n      installed tree at the point of failure:\n${tree}`);
+	}
+}
+
+/**
+ * Brings the package to `version` from whatever state n8n is currently in.
+ *
+ * A failed load leaves n8n inconsistent: `installOrUpdatePackage` deletes the package
+ * directory but throws before removing the database row, so n8n still believes the
+ * package is installed and refuses a plain install with "already installed" — while an
+ * update has nothing on disk to update. Which of those you hit depends on whether n8n's
+ * missing-package reconciliation has run yet, so it is racy rather than deterministic.
+ */
+async function ensureInstalled(version) {
+	const uninstall = () =>
+		api(`/rest/community-packages?name=${encodeURIComponent(PACKAGE_NAME)}`, {
+			method: 'DELETE',
+		}).catch(() => undefined);
+
+	const listed = await api('/rest/community-packages').catch(() => []);
+	const registered = (listed ?? []).some((p) => p.packageName === PACKAGE_NAME);
+
+	if (registered) {
+		try {
+			return await api('/rest/community-packages', {
+				method: 'PATCH',
+				body: { name: PACKAGE_NAME, version },
+			});
+		} catch {
+			// Registration is stale — drop it so the install below can proceed.
+			await uninstall();
+		}
+	}
+
+	try {
+		return await api('/rest/community-packages', {
+			method: 'POST',
+			body: { name: PACKAGE_NAME, version },
+		});
+	} catch (err) {
+		if (!/already installed/i.test(err.message)) throw err;
+		await uninstall();
+		return await api('/rest/community-packages', {
+			method: 'POST',
+			body: { name: PACKAGE_NAME, version },
+		});
+	}
 }
 
 /** Creates and executes an arbitrary workflow (main + AI sub-node connections). */
@@ -397,28 +549,25 @@ async function main() {
 			upgradeError = err;
 		}
 
-		// Upgrading in place from a release that bundled @langchain/core fails inside a
-		// running n8n: Node cached the old resolved path to the bundled copy, and the new
-		// version no longer has it there. A restart clears it. This is a one-off for the
-		// release that removes the bundled copy — deduped-to-deduped upgrades are fine —
-		// so the check disappears on its own once that release is out.
+		// If an in-place upgrade cannot load the new version, n8n deletes the package
+		// directory and that process then fails to install anything until restarted.
+		// Rather than fail the whole suite, report it and recover so the rest still runs.
 		const STALE_MODULE_CACHE = /Cannot find module[\s\S]*@langchain|could not be loaded/;
 
 		if (upgradeError && STALE_MODULE_CACHE.test(upgradeError.message)) {
 			skip(
-				'In-place upgrade from a release that bundled @langchain/core',
-				'n8n could not load the new version in its running process: Node had cached ' +
-					'the old path to the bundled @langchain/core, which this version no longer ' +
-					'ships. n8n then deletes the package directory. Restarting n8n fixes it, and ' +
-					'the suite does that below to continue.',
-				'Upgrade the node in n8n, then restart n8n and confirm it loads. Worth a release ' +
-					'note for the first version that drops the bundled copy.',
+				'In-place upgrade from the previous release',
+				'n8n could not load the new version in its running process. It deletes the ' +
+					'package directory in response, and that process then fails to install any ' +
+					'version at all until it is restarted. The suite restarts n8n and installs ' +
+					'cleanly below so the remaining tests still run.',
+				'Upgrade the node in a real n8n, then restart n8n and reinstall it. If this ' +
+					'fires, the upgrade path is broken for existing users and needs a release note.',
 			);
+			// Restart first: the failed upgrade leaves this n8n process unable to install
+			// anything. Then install clean — never update, which would just repeat it.
 			await restartN8n();
-			installed = await api('/rest/community-packages', {
-				method: 'POST',
-				body: { name: PACKAGE_NAME, version: LOCAL_VERSION },
-			});
+			installed = await reinstallClean(LOCAL_VERSION);
 			await test('installs cleanly once n8n has restarted', async () => {
 				assertEqual(
 					installed.installedVersion,
@@ -454,17 +603,9 @@ async function main() {
 		);
 
 		await test("installs the package through n8n's community-package installer", async () => {
-			try {
-				installed = await api('/rest/community-packages', {
-					method: 'POST',
-					body: { name: PACKAGE_NAME },
-				});
-			} catch (err) {
-				// Already installed (re-run against a kept stack) — fall back to the listing.
-				const packages = await api('/rest/community-packages');
-				installed = (packages ?? []).find((p) => p.packageName === PACKAGE_NAME);
-				if (!installed) throw err;
-			}
+			// Same reconciling helper as the upgrade-recovery path, so a re-run against a
+			// kept stack — or a stack left inconsistent by an earlier failure — converges.
+			installed = await ensureInstalled(LOCAL_VERSION);
 			assertEqual(installed.packageName, PACKAGE_NAME, 'installed package name mismatch');
 			assertEqual(
 				installed.installedVersion,
@@ -1474,76 +1615,66 @@ async function main() {
 		//
 		// Written so it starts passing on its own once the dependency is de-duplicated,
 		// rather than needing to be remembered and re-enabled.
+		// `retrieve` mode supplies an ai_vectorStore. Two n8n nodes consume that:
+		//
+		//   - Vector Store Question Answer Tool (toolVectorStore) — what the node's own
+		//     docs and the n8n UI steer you towards, and what users actually build.
+		//   - Vector Store Retriever (retrieverVectorStore) — which does
+		//     `vectorStore instanceof VectorStore` against n8n's own @langchain/core and
+		//     therefore rejects a store built on the copy this package bundles.
+		//
+		// This tests the first, because that is the supported path. The second is covered
+		// separately below as a known n8n-side issue.
 		const buildRetrieveWorkflow = () => ({
 			nodes: [
 				{ id: 'T', name: 'T', type: 'n8n-nodes-base.manualTrigger', typeVersion: 1, position: [0, 0], parameters: {} },
 				{
-					id: 'Chain',
-					name: 'Chain',
-					type: '@n8n/n8n-nodes-langchain.chainRetrievalQa',
-					typeVersion: 1.6,
+					id: 'Agent',
+					name: 'Agent',
+					type: '@n8n/n8n-nodes-langchain.agent',
+					typeVersion: 3.1,
 					position: [220, 0],
-					parameters: { promptType: 'define', text: retrievalQuestion, options: {} },
+					parameters: {
+						promptType: 'define',
+						text: `${retrievalQuestion} Use the available tool to look it up.`,
+						hasOutputParser: false,
+						needsFallback: false,
+						options: {},
+					},
 				},
 				chatModelNode('Model', [140, 220]),
 				{
-					id: 'Retriever',
-					name: 'Retriever',
-					type: '@n8n/n8n-nodes-langchain.retrieverVectorStore',
-					typeVersion: 1,
+					id: 'QATool',
+					name: 'QATool',
+					type: '@n8n/n8n-nodes-langchain.toolVectorStore',
+					typeVersion: 1.1,
 					position: [360, 220],
-					parameters: { topK: 4 },
+					parameters: { description: 'Facts about resorts, including how many guest rooms they have' },
 				},
 				// The node under test: supplies itself as a vector store.
 				vectorStoreNode('Store', 'retrieve', { useReranker: false, options: {} }, [360, 420]),
 				embeddingsNode('Embeddings', [360, 620]),
 			],
 			connections: {
-				T: { main: [[{ node: 'Chain', type: 'main', index: 0 }]] },
-				Model: subNodeConnection('ai_languageModel', ['Chain']),
-				Retriever: subNodeConnection('ai_retriever', ['Chain']),
-				Store: subNodeConnection('ai_vectorStore', ['Retriever']),
+				T: { main: [[{ node: 'Agent', type: 'main', index: 0 }]] },
+				Model: {
+					ai_languageModel: [
+						[
+							{ node: 'Agent', type: 'ai_languageModel', index: 0 },
+							{ node: 'QATool', type: 'ai_languageModel', index: 0 },
+						],
+					],
+				},
+				QATool: subNodeConnection('ai_tool', ['Agent']),
+				Store: subNodeConnection('ai_vectorStore', ['QATool']),
 				Embeddings: subNodeConnection('ai_embedding', ['Store']),
 			},
 		});
 
-		// `retrieve` mode is currently broken by a duplicated @langchain/core: the package
-		// bundles its own copy, so n8n's `vectorStore instanceof VectorStore` check (against
-		// n8n's copy) is false, and RetrieverVectorStore falls into its reranker branch and
-		// dereferences `vectorStore.vectorStore`. Verified by swapping the package's
-		// @langchain/core for n8n's, which makes this pass.
-		//
-		// Probed outside the test wrapper so a known failure is reported as a skip rather
-		// than a pass, and so it starts passing on its own once the dependency is
-		// de-duplicated — no need to remember to re-enable it.
-		const retrieveProbe = await (async () => {
-			const { nodes, connections } = buildRetrieveWorkflow();
-			return createAndRunRaw('e2e-vector-retrieve-probe', nodes, connections);
-		})();
-		const retrieveSignature = `${retrieveProbe.error?.message ?? ''} ${retrieveProbe.error?.description ?? ''}`;
-
-		if (retrieveProbe.status !== 'success' && /asRetriever/.test(retrieveSignature)) {
-			skip(
-				'Couchbase vector stores in "retrieve" mode (as Vector Store for Chain/Tool)',
-				"Known bug: the package bundles its own @langchain/core, so n8n's " +
-					'`instanceof VectorStore` check fails and RetrieverVectorStore dereferences ' +
-					'`vectorStore.vectorStore` (undefined). Confirmed by pointing the package at ' +
-					"n8n's @langchain/core, which makes this pass. This test re-enables itself " +
-					'automatically once the dependency is de-duplicated.',
-				'In n8n: add a Couchbase vector store in "Retrieve Documents (As Vector Store ' +
-					'for Chain/Tool)" mode behind a Vector Store Retriever + Q&A chain. It currently ' +
-					'fails with "Cannot read properties of undefined (reading \'asRetriever\')".',
-			);
-		} else {
-			await test('retrieve mode feeds a retrieval QA chain', async () => {
-				const { attempts } = await pollForAnswer(
-					'e2e-vector-retrieve',
-					buildRetrieveWorkflow,
-					'Chain',
-				);
-				console.log(`      (answered on attempt ${attempts})`);
-			});
-		}
+		await test('retrieve mode feeds a vector store QA tool', async () => {
+			const { attempts } = await pollForAnswer('e2e-vector-retrieve', buildRetrieveWorkflow, 'Agent');
+			console.log(`      (answered on attempt ${attempts})`);
+		});
 
 		await test('retrieve-as-tool mode is callable by an AI agent', async () => {
 			const { attempts, answer } = await pollForAnswer(

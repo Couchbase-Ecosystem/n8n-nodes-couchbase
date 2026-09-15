@@ -1,7 +1,7 @@
 import {
 	CouchbaseSearchVectorStore,
 	CouchbaseSearchVectorStoreArgs,
-} from '../shared/vendor/CouchbaseSearchVectorStore';
+} from '@langchain/community/vectorstores/couchbase_search';
 import {
 	IDataObject,
 	IExecuteFunctions,

@@ -1,5 +1,0 @@
-node_modules
-dist
-
-# Vendored from @langchain/community — kept close to upstream for easy re-syncing.
-nodes/vector_store/shared/vendor/

@@ -2,7 +2,7 @@ import {
 	CouchbaseQueryVectorStore,
 	CouchbaseQueryVectorStoreArgs,
 	DistanceStrategy,
-} from '../shared/vendor/CouchbaseQueryVectorStore';
+} from '@langchain/community/vectorstores/couchbase_query';
 import {
 	IDataObject,
 	IExecuteFunctions,

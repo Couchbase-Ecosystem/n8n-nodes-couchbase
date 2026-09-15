@@ -89,6 +89,10 @@ echo "==> starting the stack (couchbase, verdaccio, n8n)"
 "${COMPOSE[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
 "${COMPOSE[@]}" up -d --wait
 
+echo "==> versions under test"
+"${COMPOSE[@]}" exec -T n8n node -p "'    n8n       ' + require('/usr/local/lib/node_modules/n8n/package.json').version" || true
+"${COMPOSE[@]}" exec -T couchbase bash -c 'echo "    couchbase $(cat /opt/couchbase/VERSION.txt 2>/dev/null || echo unknown)"' || true
+
 echo "==> provisioning couchbase"
 "${COMPOSE[@]}" exec -T couchbase bash -s < "$HERE/scripts/provision-couchbase.sh"
 

@@ -18,15 +18,7 @@ module.exports = {
 		extraFileExtensions: ['.json'],
 	},
 
-	// Vendored third-party code is kept byte-close to upstream so it can be re-synced;
-	// holding it to this project's rules would defeat that.
-	ignorePatterns: [
-		'.eslintrc.js',
-		'**/*.js',
-		'**/node_modules/**',
-		'**/dist/**',
-		'nodes/vector_store/shared/vendor/**',
-	],
+	ignorePatterns: ['.eslintrc.js', '**/*.js', '**/node_modules/**', '**/dist/**'],
 
 	overrides: [
 		{

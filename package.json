@@ -16,7 +16,7 @@
     "url": "https://github.com/Couchbase-Ecosystem/n8n-nodes-couchbase.git"
   },
   "engines": {
-    "node": ">=18.10",
+    "node": ">=22.16",
     "pnpm": ">=9.1"
   },
   "packageManager": "pnpm@9.1.4",

@@ -40,7 +40,7 @@ To use the Couchbase node, you'll need to set up Couchbase credentials in n8n:
 
 ### n8n
 
-These nodes have been tested with n8n version 1.123.4.
+These nodes have been tested with n8n version 2.39.7.
 
 ### Couchbase Server
 

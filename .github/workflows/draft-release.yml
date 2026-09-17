@@ -1,0 +1,83 @@
+name: Draft release notes
+
+# Keeps a draft GitHub release for the next version up to date on every merge to master,
+# so there is always a live view of what the next release will contain — and release notes
+# ready to review before anything is published.
+#
+# The draft is regenerated on each run, so edits made to it are overwritten by the next
+# merge. Edit it once master is quiet (or edit the published release afterwards).
+# release.yml publishes whatever draft exists for the tag, rather than regenerating it.
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  # Never let two runs race to recreate the same draft.
+  group: draft-release
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  draft:
+    name: Refresh the draft release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the previous tag can be found.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+
+      - name: Refresh draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          VERSION="$(node -p "require('./package.json').version")"
+          # Between releases package.json still holds the released version, so the draft
+          # would collide with an existing tag. Use the next patch as a placeholder until
+          # the version-bump PR lands, at which point the draft takes its real name.
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            VERSION="$(node -p "
+              const v = '$VERSION'.split('.');
+              v[2] = String(Number(v[2]) + 1);
+              v.join('.');
+            ")"
+            echo "::notice::v$(node -p "require('./package.json').version") is already tagged; drafting v$VERSION as a placeholder"
+          fi
+          TAG="v$VERSION"
+
+          LAST_TAG="$(git tag --list 'v*' --sort=-v:refname | head -1 || true)"
+
+          STATE="$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null || echo none)"
+          if [[ "$STATE" == "false" ]]; then
+            echo "::notice::$TAG is already published — leaving it untouched"
+            exit 0
+          fi
+          if [[ "$STATE" == "true" ]]; then
+            gh release delete "$TAG" --yes
+          fi
+
+          # --generate-notes asks GitHub to build the notes from merged PRs, grouped by
+          # the categories in .github/release.yml.
+          # No --target: the draft tracks the default branch. Pinning it to a SHA would
+          # go stale, and when release.yml publishes it the tag already exists anyway, so
+          # the release binds to the tag that was actually pushed.
+          gh release create "$TAG" \
+            --draft \
+            --title "$TAG" \
+            --generate-notes \
+            ${LAST_TAG:+--notes-start-tag "$LAST_TAG"}
+
+          echo "Draft $TAG refreshed (notes since ${LAST_TAG:-the beginning})"
+          echo "### Draft release \`$TAG\` refreshed" >> "$GITHUB_STEP_SUMMARY"
+          gh release view "$TAG" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"

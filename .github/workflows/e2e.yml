@@ -1,0 +1,91 @@
+name: E2E
+
+# Installs the package into a real n8n instance as a community node and runs
+# workflows against a real Couchbase cluster.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  schedule:
+    # Nightly, to catch breakage from new n8n releases rather than our own changes.
+    - cron: '0 5 * * *'
+  # Reused by release.yml so a release runs exactly the same E2E as a PR.
+  workflow_call:
+  workflow_dispatch:
+    inputs:
+      n8n_image_tag:
+        description: 'n8n image tag to test against'
+        required: false
+        default: 'latest'
+      couchbase_image:
+        description: 'Couchbase Server image to test against'
+        required: false
+        default: 'couchbase:enterprise-8.0.1'
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Install into n8n & run workflows (${{ matrix.arch.name }})
+    runs-on: ${{ matrix.arch.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - { name: amd64, runner: ubuntu-latest }
+          # n8n's Docker image is widely run on arm64 (Apple Silicon, Graviton, Pi),
+          # and the Couchbase SDK ships per-architecture prebuilt bindings, so the
+          # install path genuinely differs. Free on public repos.
+          - { name: arm64, runner: ubuntu-24.04-arm }
+
+    env:
+      # Pinned by docker-compose.yml so PRs test a known version; the nightly run
+      # deliberately uses `latest` to catch breakage from new n8n releases.
+      N8N_IMAGE_TAG: ${{ inputs.n8n_image_tag || (github.event_name == 'schedule' && 'latest') || '' }}
+      COUCHBASE_IMAGE: ${{ inputs.couchbase_image || 'couchbase:enterprise-8.0.1' }}
+      # Leave the stack up so the failure step can collect logs; torn down below.
+      E2E_KEEP: '1'
+      # Absent on forked pull requests — GitHub does not expose secrets to them.
+      # The runner skips the vector-store tests loudly rather than failing.
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Warn when the embeddings key is unavailable
+        if: env.OPENAI_API_KEY == ''
+        run: |
+          echo "::warning title=Vector store tests will be skipped::OPENAI_API_KEY is not \
+          available to this run (expected on forked pull requests). The vector-store \
+          nodes will not be verified — see the run summary for manual validation steps."
+
+      - name: Run E2E
+        run: ./test/e2e/run.sh
+
+      - name: Collect service logs
+        if: failure()
+        run: |
+          docker compose -f test/e2e/docker-compose.yml ps || true
+          for svc in n8n couchbase verdaccio; do
+            echo "::group::$svc logs"
+            docker compose -f test/e2e/docker-compose.yml logs --tail=300 "$svc" || true
+            echo "::endgroup::"
+          done
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f test/e2e/docker-compose.yml down -v --remove-orphans || true

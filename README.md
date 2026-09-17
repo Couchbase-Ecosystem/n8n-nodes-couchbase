@@ -15,6 +15,7 @@ Couchbase is a distributed NoSQL cloud database that offers the robustness of a 
 Click on the node name to view its detailed documentation.
 - [**Couchbase**](nodes/Couchbase/README.md): This node allows you to perform operations on The Couchbase KV, Query, and Search services. It supports creating, reading, updating, and deleting documents, as well as executing SQL++ queries and full-text searches.
 - [**Couchbase Search Vector Store**](nodes/vector_store/VectorStoreCouchbaseSearch/README.md): This node allows you to perform vector search operations using the Couchbase Search Service. It supports retrieving, updating, and inserting documents in a vector database, as well as using the vector store as a tool for AI agents.
+- [**Couchbase Query Vector Store**](nodes/vector_store/VectorStoreCouchbaseQuery/README.md): This node performs vector similarity search using the Couchbase Query service and SQL++ vector indexes. **Requires Couchbase Server 8.0 or newer.**
 - [**Couchbase Chat Memory**](nodes/memory/MemoryCouchbaseChat/README.md): This node provides persistent storage for conversational AI applications by storing chat conversation history in a Couchbase database. It enables AI agents and chains to maintain context across multiple interactions.
 
 ## Installation
@@ -37,5 +38,23 @@ To use the Couchbase node, you'll need to set up Couchbase credentials in n8n:
 
 ## Compatibility
 
-This node has been tested with n8n version 1.123.4.
+### n8n
+
+These nodes have been tested with n8n version 1.123.4.
+
+### Couchbase Server
+
+| Node | Minimum Couchbase Server |
+| --- | --- |
+| Couchbase (KV / Query / Search) | 7.6 |
+| Couchbase Search Vector Store | 7.6 |
+| Couchbase Chat Memory | 7.6 |
+| **Couchbase Query Vector Store** | **8.0** |
+
+The Couchbase Query Vector Store node builds SQL++ around the `APPROX_VECTOR_DISTANCE`
+function, which was introduced in Couchbase Server 8.0. On 7.6.x the function does not
+exist and the node fails with `ParsingFailureError: parsing failure`, which does not
+explain the cause — if you see that error, check your server version first.
+
+Couchbase Capella clusters running 8.0 or later satisfy this requirement.
 

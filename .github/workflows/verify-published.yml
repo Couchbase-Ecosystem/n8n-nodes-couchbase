@@ -1,0 +1,29 @@
+name: Verify published package
+
+# n8n runs this scanner against community nodes before marking them verified.
+# It inspects what is actually on npm, so it only makes sense after a release.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Published version to scan (defaults to latest)'
+        required: false
+
+jobs:
+  scan:
+    name: n8n community package scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+
+      - name: Scan
+        run: |
+          PKG=n8n-nodes-couchbase
+          if [ -n "${{ inputs.version }}" ]; then PKG="$PKG@${{ inputs.version }}"; fi
+          npx --yes @n8n/scan-community-package "$PKG"

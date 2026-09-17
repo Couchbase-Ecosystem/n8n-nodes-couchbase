@@ -1,0 +1,96 @@
+# E2E stack: a real Couchbase cluster, a stand-in npm registry, and a real n8n instance.
+# The package under test is published to the registry and then installed through
+# n8n's own community-package installer — the same path a user takes in the UI.
+#
+# Two networks on purpose:
+#   n8nnet  — n8n, Couchbase and the TLS proxy. `registry.npmjs.org` resolves to the proxy
+#             here, because n8n's installer hard-codes that hostname.
+#   regnet  — the proxy and Verdaccio. Verdaccio is kept off n8nnet so that the alias does
+#             not shadow the real registry it needs to proxy from.
+name: n8n-nodes-couchbase-e2e
+
+networks:
+  n8nnet:
+  regnet:
+
+services:
+  couchbase:
+    # Couchbase Server 8.0+ is required to exercise the Couchbase Query Vector Store
+    # node: it builds SQL++ around APPROX_VECTOR_DISTANCE, which does not exist on
+    # 7.6.x. Everything else in the suite runs fine on 7.6.
+    image: ${COUCHBASE_IMAGE:-couchbase:enterprise-8.0.1}
+    networks: [n8nnet]
+    # No published ports: provisioning runs via `docker compose exec`, and n8n
+    # reaches the cluster over the compose network.
+    healthcheck:
+      test: ['CMD', 'curl', '-sf', 'http://127.0.0.1:8091/ui/index.html']
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
+
+  verdaccio:
+    image: verdaccio/verdaccio:6
+    networks: [regnet]
+    ports:
+      - '${VERDACCIO_PORT:-4873}:4873'
+    volumes:
+      - ./verdaccio/config.yaml:/verdaccio/conf/config.yaml:ro
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1:4873/-/ping']
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  npmproxy:
+    image: nginx:alpine
+    networks:
+      n8nnet:
+        aliases:
+          - registry.npmjs.org
+      regnet:
+    volumes:
+      - ./nginx/registry.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      verdaccio:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --no-check-certificate -O- https://127.0.0.1/-/ping >/dev/null || exit 1']
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  n8n:
+    # Pinned deliberately. `latest` is not reproducible: a locally cached `latest` can be
+    # months behind the one CI pulls, and the two then test different software — which has
+    # already caused a long chase where every local run passed and every CI run failed.
+    # The nightly E2E overrides this with `latest` to catch upstream drift on purpose.
+    image: docker.n8n.io/n8nio/n8n:${N8N_IMAGE_TAG:-2.39.5}
+    networks: [n8nnet]
+    ports:
+      - '${N8N_PORT:-5678}:5678'
+    environment:
+      N8N_COMMUNITY_PACKAGES_ENABLED: 'true'
+      N8N_UNVERIFIED_PACKAGES_ENABLED: 'true'
+      # n8n passes --registry=https://registry.npmjs.org explicitly, which overrides
+      # NPM_CONFIG_REGISTRY. That hostname resolves to npmproxy on this network, which
+      # serves a self-signed certificate — hence strict-ssl off.
+      NPM_CONFIG_STRICT_SSL: 'false'
+      N8N_ENCRYPTION_KEY: 'e2e-test-encryption-key'
+      N8N_DIAGNOSTICS_ENABLED: 'false'
+      N8N_VERSION_NOTIFICATIONS_ENABLED: 'false'
+      N8N_TEMPLATES_ENABLED: 'false'
+      N8N_PUBLIC_API_DISABLED: 'true'
+      E2E_COUCHBASE_CONNECTION_STRING: 'couchbase://couchbase'
+    depends_on:
+      couchbase:
+        condition: service_healthy
+      npmproxy:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider http://127.0.0.1:5678/healthz || exit 1']
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 10s

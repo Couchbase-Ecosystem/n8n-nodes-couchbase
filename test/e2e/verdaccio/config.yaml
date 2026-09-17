@@ -1,0 +1,33 @@
+# Serves the package under test to n8n.
+#
+# n8n's community-package installer passes `--registry=https://registry.npmjs.org` on the
+# npm command line (overriding it is an Enterprise-licensed feature), and a command-line
+# flag beats NPM_CONFIG_REGISTRY. So the stack makes that hostname resolve to the
+# `npmproxy` service, which terminates TLS and forwards here.
+#
+# This container is deliberately NOT on the network carrying that alias: it has to reach
+# the real registry.npmjs.org for everything it proxies.
+storage: /verdaccio/storage/data
+auth:
+  htpasswd:
+    file: /verdaccio/storage/htpasswd
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+    timeout: 60s
+    maxage: 3600s
+packages:
+  # Never proxy the package under test — the locally built tarball must win over
+  # whatever is published upstream, otherwise the E2E silently tests the release.
+  'n8n-nodes-couchbase':
+    access: $all
+    publish: $all
+    unpublish: $all
+  '**':
+    access: $all
+    publish: $all
+    unpublish: $all
+    proxy: npmjs
+publish:
+  allow_offline: true
+log: { type: stdout, format: pretty, level: warn }

@@ -77,7 +77,7 @@
     "@langchain/community": "^1.1.18",
     "@langchain/core": "^1.1.27",
     "@langchain/textsplitters": "^1.0.1",
-    "couchbase": "^4.6.1",
+    "couchbase": "4.6.1",
     "langchain": "^1.2.26",
     "tmp-promise": "^3.0.3",
     "uuid": "^11.1.0",

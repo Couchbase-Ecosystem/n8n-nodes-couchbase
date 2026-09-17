@@ -45,6 +45,8 @@ OPENAI_API_KEY=sk-... pnpm test:e2e
 With `E2E_KEEP=1` the driver is re-runnable on its own:
 `E2E_N8N_URL=http://127.0.0.1:5678 node test/e2e/run-e2e.mjs`.
 
+To drive a real n8n UI by hand against the local build, see [Manual testing](#manual-testing-testmanual).
+
 ---
 
 ## Layer 1 — Static
@@ -174,6 +176,44 @@ retrieval through the Query node. Needs `OPENAI_API_KEY`; skipped loudly without
 
 `@n8n/scan-community-package` is what n8n runs against community nodes before marking them
 verified. It inspects the published artefact, so it runs on release, not on PRs.
+
+---
+
+## Manual testing (`test/manual`)
+
+The layers above gate merges. This is for the times you need to click through the UI
+yourself — checking how a field renders, whether an agent picks the right tool, or
+reproducing something a user reported.
+
+`test/manual/fresh-n8n.sh` gives you a clean n8n in Docker with the **local** build
+installed as a community node:
+
+```bash
+./test/manual/fresh-n8n.sh up       # build, pack, install, start
+./test/manual/fresh-n8n.sh reload   # after a code change
+./test/manual/fresh-n8n.sh logs     # follow the container logs
+./test/manual/fresh-n8n.sh shell    # shell into the container
+./test/manual/fresh-n8n.sh down     # stop, keep your workflows
+./test/manual/fresh-n8n.sh reset    # delete the volume too — clean slate
+```
+
+It comes up on <http://localhost:5679> and asks you to create an owner account, since the
+instance is brand new. Overrides: `N8N_IMAGE_TAG`, `N8N_PORT`, `N8N_VOLUME`, `N8N_CONTAINER`.
+
+Three things worth knowing:
+
+- **It packs a tarball rather than mounting the worktree.** `npm install <dir>` creates a
+  symlink, which would make the container resolve dependencies from your host's
+  `node_modules` — where the `couchbase` native binding is built for your host platform, not
+  for Linux. Packing forces npm to install the right binaries inside the container.
+- **`reload` is the only way a code change reaches the container.** The package is a real
+  copy inside the volume, so a plain `docker restart` picks up nothing. The same applies to a
+  local `~/.n8n/nodes` install: n8n reads nodes at boot, so restart after every rebuild.
+- **The n8n version defaults to whatever `test/e2e/docker-compose.yml` pins**, read from that
+  file rather than duplicated, so hands-on testing matches what CI runs.
+
+To reach a Couchbase running on your host, use `couchbase://host.docker.internal` — inside
+the container `localhost` is n8n itself.
 
 ---
 

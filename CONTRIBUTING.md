@@ -124,6 +124,11 @@ warning rather than failing.
 CI runs the fast checks on every pull request and the E2E suite on pull requests,
 pushes to `master`, and nightly.
 
+To try the local build by hand in a real n8n UI, `./test/manual/fresh-n8n.sh up` starts a
+clean n8n in Docker with the package installed, on <http://localhost:5679>. Use
+`reload` after a code change — see
+[Manual testing](TESTING.md#manual-testing-testmanual).
+
 ## Releasing
 
 Releases are published by CI when a version tag is pushed. Authentication uses npm

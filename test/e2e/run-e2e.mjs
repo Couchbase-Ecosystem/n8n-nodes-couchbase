@@ -1242,7 +1242,7 @@ async function main() {
 			id: name,
 			name,
 			type: `${PACKAGE_NAME}.vectorStoreCouchbaseSearch`,
-			typeVersion: 1,
+			typeVersion: 1.3,
 			position,
 			credentials: { couchbaseApi: { id: credentialId, name: 'E2E Couchbase' } },
 			parameters: {
@@ -1345,7 +1345,7 @@ async function main() {
 			id: name,
 			name,
 			type: `${PACKAGE_NAME}.vectorStoreCouchbaseQuery`,
-			typeVersion: 1,
+			typeVersion: 1.3,
 			position,
 			credentials: { couchbaseApi: { id: credentialId, name: 'E2E Couchbase' } },
 			parameters: {
@@ -1558,13 +1558,16 @@ async function main() {
 			id: name,
 			name,
 			type: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
-			typeVersion: 1.2,
+			// 1.3 is what the UI creates, and it turns on `responsesApiEnabled` by
+			// default — a different OpenAI API, and a different tool-calling shape, than
+			// 1.2. Testing at 1.2 exercised a path users no longer get.
+			typeVersion: 1.3,
 			position,
 			credentials: { openAiApi: { id: embeddingsCredentialId, name: 'E2E OpenAI' } },
 			parameters: {
 				model: { __rl: true, mode: 'list', value: CHAT_MODEL },
-				// Temperature 0 so repeated CI runs behave the same way.
-				options: { temperature: 0 },
+				builtInTools: {},
+				options: {},
 			},
 		});
 

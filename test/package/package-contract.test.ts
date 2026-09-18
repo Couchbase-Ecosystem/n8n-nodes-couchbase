@@ -14,7 +14,11 @@ function packedFiles(): string[] {
 		maxBuffer: 32 * 1024 * 1024,
 	});
 	const parsed = JSON.parse(out);
-	return parsed[0].files.map((f: { path: string }) => f.path.replace(/\\/g, '/'));
+	const packed = Array.isArray(parsed)
+		? parsed[0]
+		: (Object.values(parsed)[0] as { files?: Array<{ path: string }> } | undefined);
+	if (!packed?.files) throw new Error(`npm pack did not report a file list: ${out.slice(0, 400)}`);
+	return packed.files.map((f: { path: string }) => f.path.replace(/\\/g, '/'));
 }
 
 const manifestEntries: string[] = [...pkg.n8n.nodes, ...pkg.n8n.credentials];

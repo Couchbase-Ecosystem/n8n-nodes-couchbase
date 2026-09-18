@@ -8,9 +8,11 @@ The setup process involves using both npm and pnpm package managers. Follow thes
 
 ### Prerequisites
 
-- Node.js (recommended version: 16.x or later)
+- Node.js 22.16 or later (Node.js 24 is recommended when validating against current n8n releases)
 - npm (comes with Node.js)
-- pnpm (version 10.5.0 or compatible)
+- pnpm via Corepack. This repository declares its package-manager version in
+  `package.json` (`pnpm@9.1.4` at the time of writing), so Corepack will use the
+  project-pinned version automatically.
 
 ### Installing pnpm with Corepack
 
@@ -20,16 +22,11 @@ We recommend enabling Node.js corepack:
 corepack enable
 ```
 
-With Node.js v16.17 or newer, you can install the latest version of pnpm:
+With Node.js 22.16 or newer, you can enable Corepack and let it install the
+project-pinned pnpm version:
 
 ```bash
-corepack prepare pnpm@latest --activate
-```
-
-If you use an older version of Node.js, install at least version 9.15 of pnpm:
-
-```bash
-corepack prepare pnpm@9.15.5 --activate
+corepack install
 ```
 
 **IMPORTANT**: If you have installed Node.js via homebrew, you'll need to run:

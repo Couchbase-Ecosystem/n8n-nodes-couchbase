@@ -34,11 +34,26 @@ PKG_NAME="$(node -p "require('$ROOT/package.json').name")"
 log() { printf '\033[36m==>\033[0m %s\n' "$*"; }
 
 pack() {
+	if [ ! -d "$ROOT/node_modules" ]; then
+		echo "$ROOT/node_modules is missing — run 'pnpm install' first" >&2
+		return 1
+	fi
 	log "Building $PKG_NAME"
-	(cd "$ROOT" && pnpm build >/dev/null)
+	# tsc reports errors on stdout, so discarding it hides the whole reason a
+	# build failed. Capture instead, and print it only when something breaks.
+	local out
+	if ! out="$(cd "$ROOT" && pnpm build 2>&1)"; then
+		printf '%s\n' "$out" >&2
+		echo "build failed" >&2
+		return 1
+	fi
 	log "Packing tarball"
 	rm -f "$ROOT"/*.tgz
-	(cd "$ROOT" && npm pack --ignore-scripts >/dev/null 2>&1)
+	if ! out="$(cd "$ROOT" && npm pack --ignore-scripts 2>&1)"; then
+		printf '%s\n' "$out" >&2
+		echo "npm pack failed" >&2
+		return 1
+	fi
 	TARBALL="$(basename "$(ls "$ROOT"/*.tgz | head -1)")"
 	log "Packed $TARBALL"
 }
@@ -62,6 +77,11 @@ install_pkg() {
 	log "Installed"
 }
 
+# n8n builds webhook/chat URLs from its own base URL, not from the page origin.
+# Inside the container it listens on 5678, so without WEBHOOK_URL it hands the
+# browser http://localhost:5678/... while the editor is served from $PORT — the
+# chat panel then fetches a port nothing is published on and fails with a bare
+# "Failed to fetch". Pin both to the host port we actually publish.
 start() {
 	docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
 	log "Starting n8n $IMAGE_TAG on port $PORT"
@@ -69,6 +89,8 @@ start() {
 		-p "$PORT":5678 \
 		-v "$VOLUME":/home/node/.n8n \
 		--add-host host.docker.internal:host-gateway \
+		-e WEBHOOK_URL="http://localhost:$PORT/" \
+		-e N8N_EDITOR_BASE_URL="http://localhost:$PORT/" \
 		-e N8N_DIAGNOSTICS_ENABLED=false \
 		-e N8N_SECURE_COOKIE=false \
 		-e N8N_RUNNERS_ENABLED=true \
@@ -99,7 +121,9 @@ verify() {
 	log "Node files visible to n8n:"
 	docker exec "$CONTAINER" sh -c "ls /home/node/.n8n/nodes/node_modules/$PKG_NAME/dist/nodes 2>/dev/null" || true
 	log "Version installed: $(docker exec "$CONTAINER" node -p "require('/home/node/.n8n/nodes/node_modules/$PKG_NAME/package.json').version" 2>/dev/null || echo '?')"
-	log "Couchbase SDK: $(docker exec "$CONTAINER" node -p "require('/home/node/.n8n/nodes/node_modules/couchbase/package.json').version" 2>/dev/null || echo 'not found')"
+	# `--install-strategy=shallow` nests deps under the package rather than hoisting
+	# them, so resolve from the package dir instead of guessing a layout.
+	log "Couchbase SDK: $(docker exec "$CONTAINER" node -p "require(require.resolve('couchbase/package.json', { paths: ['/home/node/.n8n/nodes/node_modules/$PKG_NAME'] })).version" 2>/dev/null || echo 'not found')"
 }
 
 case "${1:-up}" in

@@ -61,6 +61,24 @@ The user-provided Query Vector Store fixture is saved at:
 
 - `docs/manual-testing/workflows/query-vector-store-test-all.workflow.json`
 
+Additional manual-test fixtures and setup assets are documented in `docs/manual-testing/README.md`.
+
+When manually validating either vector-store all-in-one fixture:
+
+- `docs/manual-testing/workflows/query-vector-store-test-all.workflow.json`
+- `docs/manual-testing/workflows/search-vector-store-test-all.workflow.json`
+
+the manual trigger is intentionally not connected to every test branch at once. Reconnect it step-by-step:
+
+1. Connect the manual trigger to **Get Many** and run it; verify documents are returned.
+2. Reconnect the trigger to **Insert** and run it.
+3. Copy the ID from the inserted document into **Update Documents**, reconnect the trigger to **Update Documents**, and run it.
+4. At the bottom of each workflow, test both vector retrieval paths independently: the Vector Store QA Tool path and the Retrieve As Tool / AI Agent path. Verify both paths return responses.
+
+`docs/manual-testing/workflows/core-nodes-test-all.workflow.json` covers the remaining core Couchbase and chat-memory nodes: KV create/read/upsert/delete, SQL++ query, FTS index creation, basic FTS search, advanced raw JSON search, and `MemoryCouchbaseChat` via n8n's Chat Memory Manager.
+
+Reusable Search Vector Store FTS/vector index definitions live under `docs/manual-testing/indexes/`. Import them through Couchbase Search, or remove cluster-specific `uuid` / `sourceUUID` fields first if the target cluster rejects an exported definition.
+
 Use that workflow as the pattern for other node fixtures: include a manual trigger, realistic Couchbase credentials placeholders, and enough connected n8n LangChain nodes to exercise the actual plugin node mode.
 
 ## Data and secrets

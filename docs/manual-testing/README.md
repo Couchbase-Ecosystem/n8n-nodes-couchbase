@@ -6,7 +6,7 @@ Reusable n8n workflow fixtures live in `docs/manual-testing/workflows/` and can 
 
 - `query-vector-store-test-all.workflow.json` exercises the Couchbase Query Vector Store modes.
 - `search-vector-store-test-all.workflow.json` exercises the Couchbase Search Vector Store modes.
-- `core-nodes-test-all.workflow.json` exercises the remaining Couchbase node modes: KV create/read/upsert/delete, SQL++ query, FTS index creation, basic FTS search, advanced raw JSON search, and the Couchbase Chat Memory node through n8n's Chat Memory Manager. The cleanup/delete node is intentionally disconnected so Search can finish indexing before the test document is removed; run cleanup manually after verifying both search nodes, or before rerunning after a failed validation.
+- `core-nodes-test-all.workflow.json` exercises the remaining Couchbase node modes: repeatable KV seed/read/upsert/delete, SQL++ query, FTS index upsert, basic FTS search, advanced raw JSON search, and the Couchbase Chat Memory node through n8n's Chat Memory Manager. The FTS index step continues when the index already exists, and the workflow includes a short wait after creating/updating the Search index so Couchbase can publish the index before the search nodes run. The cleanup/delete node is intentionally disconnected; run cleanup manually only when you want to remove the seed document.
 
 ## Query/Search Vector Store manual procedure
 

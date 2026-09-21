@@ -1,0 +1,523 @@
+{
+  "name": "Core Couchbase Nodes Test All",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        0
+      ],
+      "id": "manual-trigger-core-couchbase",
+      "name": "When clicking \u2018Execute workflow\u2019"
+    },
+    {
+      "parameters": {
+        "content": "### Core Couchbase node manual test\nRuns KV create/read/upsert, SQL++ query, FTS index creation, basic FTS search, and advanced raw JSON search against `test-insert`.`data`.`data`. The Delete node is intentionally disconnected; run it manually after verifying the search nodes, or before rerunning after a failed validation.",
+        "height": 220,
+        "width": 520,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        -320
+      ],
+      "id": "note-core-couchbase",
+      "name": "Core Manual Test Notes"
+    },
+    {
+      "parameters": {
+        "resource": "document",
+        "operation": "create",
+        "couchbaseBucket": {
+          "__rl": true,
+          "value": "test-insert",
+          "mode": "list",
+          "cachedResultName": "test-insert"
+        },
+        "couchbaseScope": {
+          "__rl": true,
+          "value": "data",
+          "mode": "list",
+          "cachedResultName": "data"
+        },
+        "couchbaseCollection": {
+          "__rl": true,
+          "value": "data",
+          "mode": "list",
+          "cachedResultName": "data"
+        },
+        "isSpecifyDocumentId": true,
+        "documentId": "manual-core-node-fixture",
+        "documentValue": "{\"type\": \"manual-test\", \"description\": \"sapphire lagoon manual Couchbase node fixture\", \"status\": \"created\", \"fixture\": \"core-nodes-test-all\"}"
+      },
+      "type": "n8n-nodes-couchbase.couchbase",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        0
+      ],
+      "id": "create-kv-doc",
+      "name": "Create KV Document",
+      "credentials": {
+        "couchbaseApi": {
+          "id": "COUCHBASE_CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Couchbase Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "document",
+        "operation": "read",
+        "couchbaseBucket": {
+          "__rl": true,
+          "value": "test-insert",
+          "mode": "list",
+          "cachedResultName": "test-insert"
+        },
+        "couchbaseScope": {
+          "__rl": true,
+          "value": "data",
+          "mode": "list",
+          "cachedResultName": "data"
+        },
+        "couchbaseCollection": {
+          "__rl": true,
+          "value": "data",
+          "mode": "list",
+          "cachedResultName": "data"
+        },
+        "documentId": "manual-core-node-fixture"
+      },
+      "type": "n8n-nodes-couchbase.couchbase",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        0
+      ],
+      "id": "read-kv-doc",
+      "name": "Read KV Document",
+      "credentials": {
+        "couchbaseApi": {
+          "id": "COUCHBASE_CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Couchbase Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "document",
+        "operation": "upsert",
+        "couchbaseBucket": {
+          "__rl": true,
+          "value": "test-insert",
+          "mode": "list",
+          "cachedResultName": "test-insert"
+        },
+        "couchbaseScope": {
+          "__rl": true,
+          "value": "data",
+          "mode": "list",
+          "cachedResultName": "data"
+        },
+        "couchbaseCollection": {
+          "__rl": true,
+          "value": "data",
+          "mode": "list",
+          "cachedResultName": "data"
+        },
+        "documentId": "manual-core-node-fixture",
+        "documentValue": "{\"type\": \"manual-test\", \"description\": \"sapphire lagoon manual Couchbase node fixture updated\", \"status\": \"updated\", \"fixture\": \"core-nodes-test-all\"}"
+      },
+      "type": "n8n-nodes-couchbase.couchbase",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "upsert-kv-doc",
+      "name": "Upsert KV Document",
+      "credentials": {
+        "couchbaseApi": {
+          "id": "COUCHBASE_CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Couchbase Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "document",
+        "operation": "query",
+        "couchbaseBucket": {
+          "__rl": true,
+          "value": "test-insert",
+          "mode": "list",
+          "cachedResultName": "test-insert"
+        },
+        "couchbaseScope": {
+          "__rl": true,
+          "value": "data",
+          "mode": "list",
+          "cachedResultName": "data"
+        },
+        "query": "SELECT META(d).id AS id, d.description, d.status, d.fixture FROM `test-insert`.`data`.`data` AS d WHERE META(d).id = 'manual-core-node-fixture' LIMIT 1;"
+      },
+      "type": "n8n-nodes-couchbase.couchbase",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "id": "query-sqlpp",
+      "name": "Query SQL++ Document",
+      "credentials": {
+        "couchbaseApi": {
+          "id": "COUCHBASE_CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Couchbase Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "search",
+        "operation": "createIndex",
+        "indexDefinition": "{\n  \"name\": \"manual-core-search\",\n  \"type\": \"fulltext-index\",\n  \"sourceType\": \"gocbcore\",\n  \"sourceName\": \"test-insert\",\n  \"planParams\": {\n    \"indexPartitions\": 1,\n    \"numReplicas\": 0\n  },\n  \"params\": {\n    \"doc_config\": {\n      \"mode\": \"scope.collection.type_field\",\n      \"type_field\": \"type\"\n    },\n    \"mapping\": {\n      \"default_analyzer\": \"standard\",\n      \"default_datetime_parser\": \"dateTimeOptional\",\n      \"default_field\": \"_all\",\n      \"default_mapping\": {\n        \"dynamic\": false,\n        \"enabled\": false\n      },\n      \"default_type\": \"_default\",\n      \"index_dynamic\": true,\n      \"store_dynamic\": true,\n      \"type_field\": \"_type\",\n      \"types\": {\n        \"data.data\": {\n          \"dynamic\": true,\n          \"enabled\": true\n        }\n      }\n    },\n    \"store\": {\n      \"indexType\": \"scorch\"\n    }\n  }\n}"
+      },
+      "type": "n8n-nodes-couchbase.couchbase",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "id": "create-fts-index",
+      "name": "Create FTS Index",
+      "credentials": {
+        "couchbaseApi": {
+          "id": "COUCHBASE_CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Couchbase Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "search",
+        "operation": "retrieve",
+        "searchType": "searchFullText",
+        "indexName": {
+          "__rl": true,
+          "value": "manual-core-search",
+          "mode": "list",
+          "cachedResultName": "manual-core-search"
+        },
+        "advancedMode": false,
+        "searchQuery": "sapphire",
+        "fieldsToReturn": "*",
+        "resultsLimit": 10,
+        "includeLocations": false
+      },
+      "type": "n8n-nodes-couchbase.couchbase",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ],
+      "id": "fts-search",
+      "name": "Search Full Text",
+      "credentials": {
+        "couchbaseApi": {
+          "id": "COUCHBASE_CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Couchbase Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "search",
+        "operation": "retrieve",
+        "searchType": "searchFullText",
+        "indexName": {
+          "__rl": true,
+          "value": "manual-core-search",
+          "mode": "list",
+          "cachedResultName": "manual-core-search"
+        },
+        "advancedMode": true,
+        "rawQuery": "{\n  \"query\": {\n    \"match\": \"sapphire\"\n  },\n  \"fields\": [\n    \"*\"\n  ],\n  \"size\": 10,\n  \"from\": 0\n}"
+      },
+      "type": "n8n-nodes-couchbase.couchbase",
+      "typeVersion": 2,
+      "position": [
+        960,
+        0
+      ],
+      "id": "fts-advanced",
+      "name": "Search Advanced Raw JSON",
+      "credentials": {
+        "couchbaseApi": {
+          "id": "COUCHBASE_CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Couchbase Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "document",
+        "operation": "delete",
+        "couchbaseBucket": {
+          "__rl": true,
+          "value": "test-insert",
+          "mode": "list",
+          "cachedResultName": "test-insert"
+        },
+        "couchbaseScope": {
+          "__rl": true,
+          "value": "data",
+          "mode": "list",
+          "cachedResultName": "data"
+        },
+        "couchbaseCollection": {
+          "__rl": true,
+          "value": "data",
+          "mode": "list",
+          "cachedResultName": "data"
+        },
+        "documentId": "manual-core-node-fixture"
+      },
+      "type": "n8n-nodes-couchbase.couchbase",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ],
+      "id": "delete-kv-doc",
+      "name": "Delete KV Document",
+      "credentials": {
+        "couchbaseApi": {
+          "id": "COUCHBASE_CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Couchbase Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "### Couchbase Chat Memory smoke test\nThis branch uses n8n's Chat Memory Manager to insert and load messages through `MemoryCouchbaseChat`. It needs only Couchbase credentials, not OpenAI.",
+        "height": 180,
+        "width": 480,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        360
+      ],
+      "id": "note-memory",
+      "name": "Memory Manual Test Notes"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "insertMode": "insert",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "user",
+              "message": "What is Couchbase?"
+            },
+            {
+              "type": "ai",
+              "message": "A distributed NoSQL database."
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryManager",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        560
+      ],
+      "id": "memory-manager-insert",
+      "name": "Memory Manager Insert"
+    },
+    {
+      "parameters": {
+        "mode": "load",
+        "simplifyOutput": true
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryManager",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        560
+      ],
+      "id": "memory-manager-load",
+      "name": "Memory Manager Load"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "manual-core-memory-session",
+        "contextWindowLength": 10,
+        "couchbaseBucket": {
+          "__rl": true,
+          "value": "test-insert",
+          "mode": "list",
+          "cachedResultName": "test-insert"
+        },
+        "couchbaseScope": {
+          "__rl": true,
+          "value": "data",
+          "mode": "list",
+          "cachedResultName": "data"
+        },
+        "couchbaseCollection": {
+          "__rl": true,
+          "value": "data",
+          "mode": "list",
+          "cachedResultName": "data"
+        }
+      },
+      "type": "n8n-nodes-couchbase.memoryCouchbaseChat",
+      "typeVersion": 1,
+      "position": [
+        -360,
+        760
+      ],
+      "id": "couchbase-chat-memory",
+      "name": "Couchbase Chat Memory",
+      "credentials": {
+        "couchbaseApi": {
+          "id": "COUCHBASE_CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Couchbase Credentials"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking \u2018Execute workflow\u2019": {
+      "main": [
+        [
+          {
+            "node": "Create KV Document",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Memory Manager Insert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create KV Document": {
+      "main": [
+        [
+          {
+            "node": "Read KV Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read KV Document": {
+      "main": [
+        [
+          {
+            "node": "Upsert KV Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert KV Document": {
+      "main": [
+        [
+          {
+            "node": "Query SQL++ Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query SQL++ Document": {
+      "main": [
+        [
+          {
+            "node": "Create FTS Index",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create FTS Index": {
+      "main": [
+        [
+          {
+            "node": "Search Full Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Full Text": {
+      "main": [
+        [
+          {
+            "node": "Search Advanced Raw JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memory Manager Insert": {
+      "main": [
+        [
+          {
+            "node": "Memory Manager Load",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Couchbase Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Memory Manager Insert",
+            "type": "ai_memory",
+            "index": 0
+          },
+          {
+            "node": "Memory Manager Load",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "INSTANCE_ID_PLACEHOLDER"
+  },
+  "id": "WORKFLOW_ID_PLACEHOLDER",
+  "tags": []
+}

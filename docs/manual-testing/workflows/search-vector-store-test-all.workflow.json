@@ -25,7 +25,7 @@
 			"name": "Embeddings OpenAI",
 			"credentials": {
 				"openAiApi": {
-					"id": "Mi4HG918EUtwkp2b",
+					"id": "OPENAI_CREDENTIAL_ID_PLACEHOLDER",
 					"name": "OpenAI account"
 				}
 			}
@@ -104,7 +104,7 @@
 			"name": "OpenAI Chat Model",
 			"credentials": {
 				"openAiApi": {
-					"id": "Mi4HG918EUtwkp2b",
+					"id": "OPENAI_CREDENTIAL_ID_PLACEHOLDER",
 					"name": "OpenAI account"
 				}
 			}
@@ -191,7 +191,7 @@
 			"name": "Another OpenAI Embeddings",
 			"credentials": {
 				"openAiApi": {
-					"id": "Mi4HG918EUtwkp2b",
+					"id": "OPENAI_CREDENTIAL_ID_PLACEHOLDER",
 					"name": "OpenAI account"
 				}
 			}
@@ -210,7 +210,7 @@
 			"name": "Another Another OpenAI Embeddings",
 			"credentials": {
 				"openAiApi": {
-					"id": "Mi4HG918EUtwkp2b",
+					"id": "OPENAI_CREDENTIAL_ID_PLACEHOLDER",
 					"name": "OpenAI account"
 				}
 			}
@@ -235,7 +235,7 @@
 			"name": "Another OpenAI Chat Model",
 			"credentials": {
 				"openAiApi": {
-					"id": "Mi4HG918EUtwkp2b",
+					"id": "OPENAI_CREDENTIAL_ID_PLACEHOLDER",
 					"name": "OpenAI account"
 				}
 			}
@@ -265,7 +265,7 @@
 			],
 			"id": "1369dad8-4797-402b-99a0-fb86341c0fe0",
 			"name": "When chat message received",
-			"webhookId": "acb9f187-7746-4bbc-91c0-cad449f6ae50"
+			"webhookId": "WEBHOOK_ID_PLACEHOLDER"
 		},
 		{
 			"parameters": {
@@ -310,7 +310,7 @@
 			"name": "Get Many [SearchVectorStore]",
 			"credentials": {
 				"couchbaseApi": {
-					"id": "M7RUYfTZpW1nAYrg",
+					"id": "COUCHBASE_CREDENTIAL_ID_PLACEHOLDER",
 					"name": "Couchbase Credentials account"
 				}
 			}
@@ -356,7 +356,7 @@
 			"name": "Update Documents [SearchVectorStore]",
 			"credentials": {
 				"couchbaseApi": {
-					"id": "M7RUYfTZpW1nAYrg",
+					"id": "COUCHBASE_CREDENTIAL_ID_PLACEHOLDER",
 					"name": "Couchbase Credentials account"
 				}
 			}
@@ -402,7 +402,7 @@
 			"name": "Insert [SearchVectorStore]",
 			"credentials": {
 				"couchbaseApi": {
-					"id": "M7RUYfTZpW1nAYrg",
+					"id": "COUCHBASE_CREDENTIAL_ID_PLACEHOLDER",
 					"name": "Couchbase Credentials account"
 				}
 			}
@@ -449,7 +449,7 @@
 			"name": "Retrieve (As Tool for Agent) [SearchVectorStore]",
 			"credentials": {
 				"couchbaseApi": {
-					"id": "M7RUYfTZpW1nAYrg",
+					"id": "COUCHBASE_CREDENTIAL_ID_PLACEHOLDER",
 					"name": "Couchbase Credentials account"
 				}
 			}
@@ -494,7 +494,7 @@
 			"name": "Retrieve (As VS for Chain/Tool) [SearchVectorStore]",
 			"credentials": {
 				"couchbaseApi": {
-					"id": "M7RUYfTZpW1nAYrg",
+					"id": "COUCHBASE_CREDENTIAL_ID_PLACEHOLDER",
 					"name": "Couchbase Credentials account"
 				}
 			}
@@ -685,6 +685,6 @@
 	"pinData": {},
 	"meta": {
 		"templateCredsSetupCompleted": true,
-		"instanceId": "274d6e667309d59a05c1c8c49dcc62d205dcf71cbae08a3712c126035467d7c8"
+		"instanceId": "INSTANCE_ID_PLACEHOLDER"
 	}
 }

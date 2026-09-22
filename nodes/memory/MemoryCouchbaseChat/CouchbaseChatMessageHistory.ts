@@ -7,8 +7,10 @@ import {
 } from '@langchain/core/messages';
 import type { Collection } from 'couchbase';
 import { MutateInSpec } from 'couchbase';
+import { INode, NodeOperationError } from 'n8n-workflow';
 
 export interface CouchbaseChatMessageHistoryInput {
+	node: INode;
 	collection: Collection;
 	sessionId: string;
 }
@@ -21,11 +23,13 @@ export class CouchbaseChatMessageHistory extends BaseListChatMessageHistory {
 	lc_namespace = ['langchain', 'stores', 'message', 'couchbase'];
 
 	private collection: Collection;
+	private node: INode;
 	private sessionId: string;
 	private documentKey: string;
 
 	constructor(fields: CouchbaseChatMessageHistoryInput) {
 		super(fields);
+		this.node = fields.node;
 		this.collection = fields.collection;
 		this.sessionId = fields.sessionId;
 		this.documentKey = `chat_history::${this.sessionId}`;
@@ -44,7 +48,7 @@ export class CouchbaseChatMessageHistory extends BaseListChatMessageHistory {
 			if (error.name === 'DocumentNotFoundError') {
 				return [];
 			}
-			throw error;
+			throw new NodeOperationError(this.node, `Failed to get chat history: ${error.message}`);
 		}
 	}
 
@@ -77,8 +81,7 @@ export class CouchbaseChatMessageHistory extends BaseListChatMessageHistory {
 					updatedAt: new Date().toISOString(),
 				});
 			} else {
-				// Re-throw other errors.
-				throw error;
+				throw new NodeOperationError(this.node, `Failed to add chat messages: ${error.message}`);
 			}
 		}
 	}
@@ -92,7 +95,7 @@ export class CouchbaseChatMessageHistory extends BaseListChatMessageHistory {
 		} catch (error: any) {
 			// Ignore if document doesn't exist
 			if (error.name !== 'DocumentNotFoundError') {
-				throw error;
+				throw new NodeOperationError(this.node, `Failed to clear chat history: ${error.message}`);
 			}
 		}
 	}

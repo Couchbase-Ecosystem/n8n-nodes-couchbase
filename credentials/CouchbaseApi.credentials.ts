@@ -5,6 +5,12 @@ export class CouchbaseApi implements ICredentialType {
 	displayName = 'Couchbase Credentials API';
 	documentationUrl =
 		'https://github.com/Couchbase-Ecosystem/n8n-nodes-couchbase?tab=readme-ov-file#credentials';
+	supportedNodes = [
+		'couchbase',
+		'vectorStoreCouchbaseSearch',
+		'vectorStoreCouchbaseQuery',
+		'memoryCouchbaseChat',
+	];
 	icon: Icon = {
 		light: 'file:../nodes/icons/couchbase.svg',
 		dark: 'file:../nodes/icons/couchbase.dark.svg',

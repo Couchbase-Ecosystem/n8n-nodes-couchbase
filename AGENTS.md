@@ -16,6 +16,27 @@ Dependency maintenance in this repo is not limited to the Couchbase Node.js SDK.
 
 Known baseline from manual testing: n8n `2.9.2` was usable for the current manual-test setup. The npm latest observed during this instruction update was `2.39.7` (`npm view n8n version` on 2026-09-17 UTC); the user had previously seen about `2.39.5`. Agents should check the current latest again when doing the work.
 
+## `n8n-workflow` peer range
+
+Do not narrow the `n8n-workflow` peer range to track whatever major the devDependency is on. PR #31 moved it from `^1.120.1` to `>=2.9.0 <3` as a side effect of bumping the devDependency to `2.39.2`. That dropped declared support for n8n 1.x without anyone deciding to.
+
+The shipped nodes use a small and stable surface of `n8n-workflow`. Verified at v1.3.2, the built `dist/` references only: `assert`, `BINARY_ENCODING`, `jsonStringify`, `NodeConnectionTypes`, `nodeNameToToolName`, `NodeOperationError`, `parseErrorMetadata`, `traverseNodeParameters`. All of these exist in both 1.120.x and 2.x, and every `NodeConnectionTypes` value is identical across the two — so the constants baked into node descriptions at build time do not change between them.
+
+Rules:
+
+1. Widening the peer range is fine. **Narrowing it is a support-policy decision, not a dependency bump** — surface it for a maintainer to decide instead of doing it as part of an update.
+2. Bumping the `n8n-workflow` devDependency (the build target) does not require changing the peer range. The two are independent.
+3. Before proposing any narrowing, check what the built output actually uses and confirm each symbol exists in the lowest version the range would still allow:
+
+   ```bash
+   pnpm build
+   grep -rho 'n8n_workflow_1\.[A-Za-z_]*' dist/ | sort -u
+   ```
+
+   State that evidence in the PR.
+
+The same reasoning applies to exact pins generally. An exact version in `dependencies` (rather than a range) is a deliberate signal that something was wrong with a later release. Find out why before treating it as staleness, and say in the PR why lifting it is safe.
+
 ## n8n-version compatibility requirement
 
 When updating dependencies, attempt to run and manually validate this plugin against the latest stable n8n Docker image/version, not only the older known-good baseline.
@@ -87,6 +108,25 @@ Use that workflow as the pattern for other node fixtures: include a manual trigg
 - Use placeholder credentials in committed workflow fixtures. If exporting from a real n8n instance, scrub credential IDs/names unless they are intentionally inert examples.
 - Local Couchbase default on this machine is usually `couchbase://localhost` with `Administrator` / `password`, but agents must verify live state before using it.
 - OpenAI-dependent manual workflows require an available n8n OpenAI credential; if unavailable, record `blocked_missing_secrets` and still run the nearest local plugin smoke test that does not require OpenAI.
+
+## PR labels
+
+Release notes are generated from merged PRs and grouped by `.github/release.yml`, which sorts each PR into the first category whose labels it matches. An unlabelled PR falls through to "Other changes", so releases lose their structure. Label every PR you open.
+
+| Label | Use for |
+| --- | --- |
+| `breaking-change` | User-visible behaviour or supported n8n versions actually change |
+| `enhancement` | New functionality |
+| `bug` | Fixes |
+| `testing` | Test suite changes |
+| `ci` | Workflows and release automation |
+| `documentation` | Documentation only |
+| `dependencies` | Dependency updates |
+| `skip-changelog` | Version bumps and chores that should not appear in the notes |
+
+Dependency-update PRs get `dependencies`. Apply `breaking-change` only when compatibility genuinely changes for existing users — a dependency version bump on its own is not breaking, and neither is a peer-range change that the shipped code does not actually require.
+
+Labels can be applied after merge; `draft-release.yml` regenerates the notes when dispatched from the Actions tab.
 
 ## PR and Kanban reporting
 

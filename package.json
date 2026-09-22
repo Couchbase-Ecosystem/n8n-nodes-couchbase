@@ -54,8 +54,6 @@
     ]
   },
   "devDependencies": {
-    "@browserbasehq/sdk": "2.6.0",
-    "@browserbasehq/stagehand": "1.14.0",
     "@types/jest": "^29",
     "@types/node": "^22.19.3",
     "@typescript-eslint/parser": "^7.15.0",

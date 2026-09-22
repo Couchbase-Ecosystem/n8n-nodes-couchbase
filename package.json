@@ -71,7 +71,7 @@
     "typescript": "^5.5.3"
   },
   "peerDependencies": {
-    "n8n-workflow": ">=2.9.0 <3"
+    "n8n-workflow": ">=1.120.1 <3"
   },
   "dependencies": {
     "@langchain/classic": "^1.0.27",

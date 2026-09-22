@@ -1,0 +1,41 @@
+# Path-based half of the PR labelling in .github/workflows/label-pull-requests.yml.
+# The labels themselves are documented in AGENTS.md and grouped by .github/release.yml.
+#
+# Only rules that are true by construction belong here. A path can prove a PR touched
+# the test suite; it cannot prove a change to nodes/ is a feature rather than a fix, so
+# `enhancement` and `bug` are left to the conventional-commit prefix (or a human).
+#
+# Labels are added, never removed (`sync-labels: false`), so a maintainer's correction
+# sticks even when the PR is pushed to again.
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          # Workflows, the release-notes categories, and anything else added here later.
+          - '.github/**'
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          # README, CONTRIBUTING, TESTING, AGENTS, docs/**/*.md — all of it.
+          - '**/*.md'
+
+testing:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'test/**'
+          - 'jest.config.js'
+          - 'tsconfig.test.json'
+          # Manual-test fixtures and index definitions. These live under docs/ but they
+          # are test assets, not prose; docs/manual-testing/README.md picks up both
+          # labels, which is accurate.
+          - 'docs/manual-testing/**'
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'pnpm-lock.yaml'
+          - 'pnpm-workspace.yaml'
+          # package.json is deliberately not listed: it also changes for release version
+          # bumps. The workflow diffs the file's contents instead and labels on which
+          # fields actually moved.

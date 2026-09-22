@@ -128,6 +128,25 @@ Dependency-update PRs get `dependencies`. Apply `breaking-change` only when comp
 
 Labels can be applied after merge; `draft-release.yml` regenerates the notes when dispatched from the Actions tab.
 
+### What gets labelled automatically
+
+`label-pull-requests.yml` applies a subset of these on every PR, from the changed paths (`.github/labeler.yml`) and from the PR title:
+
+| Signal | Label |
+| --- | --- |
+| `.github/**` | `ci` |
+| any `*.md` | `documentation` |
+| `test/**`, `jest.config.js`, `tsconfig.test.json`, `docs/manual-testing/**` | `testing` |
+| `pnpm-lock.yaml`, `pnpm-workspace.yaml`, or a dependency field in `package.json` | `dependencies` |
+| `package.json` `version` bump with no other file in the PR | `skip-changelog` |
+| `feat:` / `fix:` / `docs:` / `test:` / `ci:` / `build:` title prefix | the matching label |
+| a `(deps)` scope, e.g. `chore(deps):` | `dependencies` |
+| a `!` marker or a `BREAKING CHANGE:` footer | `breaking-change` |
+
+Two things it will not do, by design: it never removes a label, so a correction made on the PR sticks; and it never infers `enhancement`, `bug` or `breaking-change` from a diff — a PR whose title has no conventional-commit prefix still needs those applied by hand. Changing `engines` is likewise left alone, because raising the Node or pnpm floor is a support-policy call rather than a dependency bump.
+
+Still label every PR you open. The automation is a floor, not a substitute.
+
 ## PR and Kanban reporting
 
 Any PR for dependency work must include separate sections for:

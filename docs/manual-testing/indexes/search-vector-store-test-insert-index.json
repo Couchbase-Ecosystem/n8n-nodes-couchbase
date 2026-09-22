@@ -1,0 +1,85 @@
+{
+  "name": "test-insert",
+  "type": "fulltext-index",
+  "params": {
+    "doc_config": {
+      "docid_prefix_delim": "",
+      "docid_regexp": "",
+      "mode": "scope.collection.type_field",
+      "type_field": "type"
+    },
+    "mapping": {
+      "default_analyzer": "standard",
+      "default_datetime_parser": "dateTimeOptional",
+      "default_field": "_all",
+      "default_mapping": {
+        "dynamic": false,
+        "enabled": false
+      },
+      "default_type": "_default",
+      "docvalues_dynamic": false,
+      "index_dynamic": true,
+      "scoring_model": "tf-idf",
+      "store_dynamic": true,
+      "type_field": "_type",
+      "types": {
+        "data.data": {
+          "dynamic": false,
+          "enabled": true,
+          "properties": {
+            "description": {
+              "enabled": true,
+              "dynamic": false,
+              "fields": [
+                {
+                  "analyzer": "en",
+                  "docvalues": true,
+                  "include_term_vectors": true,
+                  "index": true,
+                  "name": "description",
+                  "store": true,
+                  "type": "text"
+                }
+              ]
+            },
+            "embedding": {
+              "enabled": true,
+              "dynamic": false,
+              "fields": [
+                {
+                  "dims": 1536,
+                  "index": true,
+                  "name": "embedding",
+                  "similarity": "dot_product",
+                  "type": "vector",
+                  "vector_index_optimized_for": "recall"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "store": {
+      "indexType": "scorch",
+      "scorchMergePlanOptions": {
+        "floorSegmentFileSize": 139810133
+      },
+      "scorchPersisterOptions": {
+        "maxSizeInMemoryMergePerWorker": 419430400,
+        "numPersisterWorkers": 4
+      },
+      "segmentVersion": 16
+    }
+  },
+  "sourceType": "gocbcore",
+  "sourceName": "test-insert",
+  "sourceUUID": "8ba533dba1de3484db7b2fc87752280b",
+  "sourceParams": {},
+  "planParams": {
+    "maxPartitionsPerPIndex": 128,
+    "indexPartitions": 1,
+    "numReplicas": 0
+  },
+  "uuid": "7cccf8b5fb4c6b8e"
+}

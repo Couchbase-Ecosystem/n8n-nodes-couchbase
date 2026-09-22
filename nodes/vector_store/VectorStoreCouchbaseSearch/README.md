@@ -45,7 +45,7 @@ To use the Couchbase Search Vector Store node, you'll need to set up Couchbase c
 
 ## Compatibility
 
-This node has been tested with n8n version 1.123.4.
+This node has been tested with n8n version 2.39.7.
 
 **Note: ** in version 1.2.0 of `n8n-nodes-couchbase`, the versioning for the Couchbase Search Vector Store node was adjusted to use integers (e.g., 1, 2) instead of decimal versions (e.g., 1.0, 1.1) to align with n8n's versioning conventions for community nodes. This means that some workflows using earlier versions of the node may require updates to work with the latest version. Simply re-select the affected node(s) from the node panel and replace them in your workflow to ensure compatibility.
 

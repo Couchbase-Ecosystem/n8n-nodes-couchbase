@@ -42,7 +42,7 @@ To use the Couchbase Chat Memory node, you'll need to set up Couchbase credentia
 
 ## Compatibility
 
-This node has been tested with n8n version 1.123.4.
+This node has been tested with n8n version 2.39.7.
 
 ## Usage
 

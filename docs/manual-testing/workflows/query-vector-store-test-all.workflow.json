@@ -1,0 +1,671 @@
+{
+  "name": "Query Vector Store Test All",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -208,
+        0
+      ],
+      "id": "bd37ef9c-0155-4f61-84a3-5eb745301e3b",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -128,
+        320
+      ],
+      "id": "705247d0-b780-48f2-8be7-76e0d94fc853",
+      "name": "Embeddings OpenAI",
+      "credentials": {
+        "openAiApi": {
+          "id": "OPENAI_CREDENTIAL_ID_PLACEHOLDER",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "02041c58-565a-47f2-95ff-3b479849b532",
+      "name": "Recursive Character Text Splitter",
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "position": [
+        368,
+        464
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsonMode": "expressionData",
+        "jsonData": "{\n    \"hello\": \"world\"\n}",
+        "options": {}
+      },
+      "id": "3e7d6e19-fffb-4487-b8f2-cfb6f7706f79",
+      "name": "Default Data Loader",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "position": [
+        336,
+        256
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "mode": "load",
+        "couchbaseBucket": {
+          "__rl": true,
+          "value": "travel-agent",
+          "mode": "list",
+          "cachedResultName": "travel-agent"
+        },
+        "couchbaseScope": {
+          "__rl": true,
+          "value": "vectors",
+          "mode": "list",
+          "cachedResultName": "vectors"
+        },
+        "couchbaseCollection": {
+          "__rl": true,
+          "value": "points-of-interest",
+          "mode": "list",
+          "cachedResultName": "points-of-interest"
+        },
+        "embedding": "embedding",
+        "textFieldKey": "description",
+        "prompt": "Europe",
+        "topK": 2,
+        "options": {}
+      },
+      "type": "n8n-nodes-couchbase.vectorStoreCouchbaseQuery",
+      "typeVersion": 1.3,
+      "position": [
+        208,
+        -272
+      ],
+      "id": "b75012f2-b48b-4a97-b93e-45f1ddf81397",
+      "name": "Get Many [QueryVectorStore]",
+      "credentials": {
+        "couchbaseApi": {
+          "id": "COUCHBASE_CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Couchbase Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "couchbaseBucket": {
+          "__rl": true,
+          "value": "test-insert",
+          "mode": "list",
+          "cachedResultName": "test-insert"
+        },
+        "couchbaseScope": {
+          "__rl": true,
+          "value": "data",
+          "mode": "list",
+          "cachedResultName": "data"
+        },
+        "couchbaseCollection": {
+          "__rl": true,
+          "value": "data",
+          "mode": "list",
+          "cachedResultName": "data"
+        },
+        "embedding": "embedding",
+        "textFieldKey": "description",
+        "options": {}
+      },
+      "type": "n8n-nodes-couchbase.vectorStoreCouchbaseQuery",
+      "typeVersion": 1.3,
+      "position": [
+        128,
+        64
+      ],
+      "id": "e31e61ea-f5f9-426a-8a48-789c149e3538",
+      "name": "Insert [QueryVectorStore]",
+      "credentials": {
+        "couchbaseApi": {
+          "id": "COUCHBASE_CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Couchbase Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        256,
+        816
+      ],
+      "id": "1bf67510-acdf-4323-a483-ee7cfd5f9a3e",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "description": "Travel destinations to recommend to user"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolVectorStore",
+      "typeVersion": 1.1,
+      "position": [
+        352,
+        1056
+      ],
+      "id": "294201de-5f64-47fa-8299-3baea423ce3d",
+      "name": "Answer questions with a vector store"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        608,
+        1280
+      ],
+      "id": "e768472c-e04a-441f-b508-7167b10419df",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "OPENAI_CREDENTIAL_ID_PLACEHOLDER",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        208,
+        1056
+      ],
+      "id": "82c19924-8cee-4873-963a-de89c6324db4",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -640,
+        1328
+      ],
+      "id": "217701f4-7245-4a8a-9379-f4f54d0e8999",
+      "name": "When chat message received",
+      "webhookId": "WEBHOOK_ID_PLACEHOLDER"
+    },
+    {
+      "parameters": {
+        "content": "### Testing Retrieve Documents (As Vector Store for Chain/Tool and as Tool for Agent)\n__Note:__ use only one connection between the chat and an AI agent at one time for testing.\n",
+        "height": 128,
+        "width": 496
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        752
+      ],
+      "id": "45da6e2a-e305-49a7-962e-29015e214db3",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "couchbaseBucket": {
+          "__rl": true,
+          "value": "travel-agent",
+          "mode": "list",
+          "cachedResultName": "travel-agent"
+        },
+        "couchbaseScope": {
+          "__rl": true,
+          "value": "vectors",
+          "mode": "list",
+          "cachedResultName": "vectors"
+        },
+        "couchbaseCollection": {
+          "__rl": true,
+          "value": "points-of-interest",
+          "mode": "list",
+          "cachedResultName": "points-of-interest"
+        },
+        "embedding": "embedding",
+        "textFieldKey": "description",
+        "options": {}
+      },
+      "type": "n8n-nodes-couchbase.vectorStoreCouchbaseQuery",
+      "typeVersion": 1.3,
+      "position": [
+        208,
+        1232
+      ],
+      "id": "96bf1cf1-e741-49c0-9738-3a8b3b2d9545",
+      "name": "Retrieve (As VS for Chain/Tool) [QueryVectorStore]1",
+      "credentials": {
+        "couchbaseApi": {
+          "id": "COUCHBASE_CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Couchbase Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "\n### Testing Get Many, Insert, and Update",
+        "height": 80,
+        "width": 496,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        -352
+      ],
+      "id": "e24628a1-e290-4a88-bd40-38110361339f",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are a helpful assistant for a trip planner. You have a vector search tool to locate points of interest in a database, Use it and don't invent much."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        256,
+        1776
+      ],
+      "id": "c5d680d0-e78e-44cb-a8af-d58f41599e83",
+      "name": "Another AI Agent"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        208,
+        2016
+      ],
+      "id": "ba4c641d-4782-4131-b69b-9590ea8f7e80",
+      "name": "Another Simple Memory"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        96,
+        1504
+      ],
+      "id": "648176d7-69de-4086-90fd-32fcd6fbbffb",
+      "name": "Another OpenAI Embeddings",
+      "credentials": {
+        "openAiApi": {
+          "id": "OPENAI_CREDENTIAL_ID_PLACEHOLDER",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        288,
+        2240
+      ],
+      "id": "a0179008-bc19-4179-af11-7f9f2c1e2e66",
+      "name": "Another Another OpenAI Embeddings",
+      "credentials": {
+        "openAiApi": {
+          "id": "OPENAI_CREDENTIAL_ID_PLACEHOLDER",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        608,
+        2240
+      ],
+      "id": "f672f21f-8d60-4ad9-8f20-2fd0620ee4af",
+      "name": "Another OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "OPENAI_CREDENTIAL_ID_PLACEHOLDER",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "The list of Points of Interest from the database.",
+        "couchbaseBucket": {
+          "__rl": true,
+          "value": "travel-agent",
+          "mode": "list",
+          "cachedResultName": "travel-agent"
+        },
+        "couchbaseScope": {
+          "__rl": true,
+          "value": "vectors",
+          "mode": "list",
+          "cachedResultName": "vectors"
+        },
+        "couchbaseCollection": {
+          "__rl": true,
+          "value": "points-of-interest",
+          "mode": "list",
+          "cachedResultName": "points-of-interest"
+        },
+        "embedding": "embedding",
+        "textFieldKey": "description",
+        "options": {}
+      },
+      "type": "n8n-nodes-couchbase.vectorStoreCouchbaseQuery",
+      "typeVersion": 1.3,
+      "position": [
+        448,
+        2016
+      ],
+      "id": "2e03c168-b87f-4401-b83d-8e25f42c4c23",
+      "name": "Retrieve (As Tool for Agent) [QueryVectorStore]",
+      "credentials": {
+        "couchbaseApi": {
+          "id": "COUCHBASE_CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Couchbase Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "update",
+        "couchbaseBucket": {
+          "__rl": true,
+          "value": "test-insert",
+          "mode": "list",
+          "cachedResultName": "test-insert"
+        },
+        "couchbaseScope": {
+          "__rl": true,
+          "value": "data",
+          "mode": "list",
+          "cachedResultName": "data"
+        },
+        "couchbaseCollection": {
+          "__rl": true,
+          "value": "data",
+          "mode": "list",
+          "cachedResultName": "data"
+        },
+        "embedding": "embedding",
+        "textFieldKey": "description",
+        "id": "DOCUMENT_ID_PLACEHOLDER"
+      },
+      "type": "n8n-nodes-couchbase.vectorStoreCouchbaseQuery",
+      "typeVersion": 1.3,
+      "position": [
+        736,
+        -112
+      ],
+      "id": "e5055ab4-31aa-407a-89ca-9ed7bb1ed1ae",
+      "name": "Update Documents [QueryVectorStore]1",
+      "credentials": {
+        "couchbaseApi": {
+          "id": "COUCHBASE_CREDENTIAL_ID_PLACEHOLDER",
+          "name": "Couchbase Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const newDoc = {\"description\": \"this text is for a new document\"};\n\nreturn [{ json: newDoc }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        -112
+      ],
+      "id": "8821e45a-375f-409d-9cc8-b54f10c0cae2",
+      "name": "Code in JavaScript"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Insert [QueryVectorStore]",
+            "type": "ai_embedding",
+            "index": 0
+          },
+          {
+            "node": "Update Documents [QueryVectorStore]1",
+            "type": "ai_embedding",
+            "index": 0
+          },
+          {
+            "node": "Get Many [QueryVectorStore]",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Insert [QueryVectorStore]",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Character Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Answer questions with a vector store",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer questions with a vector store": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Another AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve (As VS for Chain/Tool) [QueryVectorStore]1": {
+      "ai_vectorStore": [
+        [
+          {
+            "node": "Answer questions with a vector store",
+            "type": "ai_vectorStore",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Another Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Another AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Another OpenAI Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Retrieve (As VS for Chain/Tool) [QueryVectorStore]1",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Another Another OpenAI Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Retrieve (As Tool for Agent) [QueryVectorStore]",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Another OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Another AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve (As Tool for Agent) [QueryVectorStore]": {
+      "ai_vectorStore": [
+        []
+      ],
+      "ai_tool": [
+        [
+          {
+            "node": "Another AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Update Documents [QueryVectorStore]1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "ed4f9add-7540-4aba-af24-a45b26212c99",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "INSTANCE_ID_PLACEHOLDER"
+  },
+  "id": "WORKFLOW_ID_PLACEHOLDER",
+  "tags": []
+}

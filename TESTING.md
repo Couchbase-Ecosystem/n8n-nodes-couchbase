@@ -200,7 +200,7 @@ installed as a community node:
 It comes up on <http://localhost:5679> and asks you to create an owner account, since the
 instance is brand new. Overrides: `N8N_IMAGE_TAG`, `N8N_PORT`, `N8N_VOLUME`, `N8N_CONTAINER`.
 
-Three things worth knowing:
+Four things worth knowing:
 
 - **It packs a tarball rather than mounting the worktree.** `npm install <dir>` creates a
   symlink, which would make the container resolve dependencies from your host's
@@ -211,6 +211,16 @@ Three things worth knowing:
   local `~/.n8n/nodes` install: n8n reads nodes at boot, so restart after every rebuild.
 - **The n8n version defaults to whatever `test/e2e/docker-compose.yml` pins**, read from that
   file rather than duplicated, so hands-on testing matches what CI runs.
+- **The script pins `WEBHOOK_URL`/`N8N_EDITOR_BASE_URL` to the published host port.** n8n
+  builds webhook, form and chat URLs from its own base URL rather than from the page you have
+  open. Inside the container it listens on 5678, so without those variables it hands the
+  browser `http://localhost:5678/...` while the editor is served from `$N8N_PORT` (5679 by
+  default). Everything driven by the REST API — including **Execute workflow** — still works,
+  because that goes to the current origin; only the Chat panel and copied webhook URLs break,
+  with a bare `Error: Failed to receive response` and `TypeError: Failed to fetch` in the
+  console and no execution recorded, because the request never reaches n8n. A container
+  created before this fix keeps its old environment: `reload` and `docker restart` will not
+  pick it up, so run `./test/manual/fresh-n8n.sh up` to recreate it (the volume is kept).
 
 To reach a Couchbase running on your host, use `couchbase://host.docker.internal` — inside
 the container `localhost` is n8n itself.

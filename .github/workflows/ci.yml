@@ -20,8 +20,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Lower bound is package.json#engines.node; upper bound is what n8n ships today.
-        node: ['20.x', '22.x']
+        # Lower bound matches the known-good n8n 2.9.x baseline; upper bound is what
+        # current n8n 2.39.x requires.
+        node: ['22.x', '24.x']
 
     steps:
       - uses: actions/checkout@v4

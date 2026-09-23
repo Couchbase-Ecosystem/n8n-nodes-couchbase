@@ -2,8 +2,6 @@
 
 This is a collection of n8n community nodes for using Couchbase services within n8n workflows.
 
-> **Self-hosted n8n only:** This package uses runtime dependencies for the Couchbase Node.js SDK and LangChain integrations. The n8n Cloud community-node scanner currently rejects community packages with runtime dependencies, so this package is intended for self-hosted n8n installations.
-
 Couchbase is a distributed NoSQL cloud database that offers the robustness of a relational database with the flexibility of a JSON document database, featuring key-value operations, SQL++ querying, and powerful search capabilities including vector search.
 
 [n8n](https://n8n.io/) is a [fair-code licensed](https://docs.n8n.io/reference/license/) workflow automation platform.

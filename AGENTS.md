@@ -100,6 +100,8 @@ the manual trigger is intentionally not connected to every test branch at once. 
 
 Reusable Search Vector Store FTS/vector index definitions live under `docs/manual-testing/indexes/`. Import them through Couchbase Search, or remove cluster-specific `uuid` / `sourceUUID` fields first if the target cluster rejects an exported definition.
 
+Before running manual n8n workflow fixtures, provision Couchbase with the documented resources in `docs/manual-testing/README.md` or `test/manual/provision-couchbase.sh`. Do not improvise bucket, scope, collection, or index names; the committed fixtures expect the documented resources. If Couchbase Search returns `pindex not available` after two focused repair attempts, block with the exact setup evidence instead of continuing open-ended debugging.
+
 Use that workflow as the pattern for other node fixtures: include a manual trigger, realistic Couchbase credentials placeholders, and enough connected n8n LangChain nodes to exercise the actual plugin node mode.
 
 ## Data and secrets

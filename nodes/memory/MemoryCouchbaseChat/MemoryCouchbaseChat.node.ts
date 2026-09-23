@@ -11,6 +11,7 @@ import { BucketNotFoundError, UnambiguousTimeoutError } from 'couchbase';
 import { logWrapper } from '@utils/logWrapper';
 import { getConnectionHintNoticeField } from '@utils/sharedFields';
 import { connectToCouchbase } from '@utils/couchbase/connectToCouchbase';
+import { couchbaseCredentialTest } from '@utils/couchbase/couchbaseCredentialTest';
 import {
 	populateCouchbaseBucketRL,
 	populateCouchbaseScopeRL,
@@ -38,6 +39,7 @@ export class MemoryCouchbaseChat implements INodeType {
 		icon: { light: 'file:../../icons/couchbase.svg', dark: 'file:../../icons/couchbase.dark.svg' },
 		group: ['transform'],
 		version: 1,
+		subtitle: '={{$parameter["sessionIdType"]}}',
 		description: 'Stores the chat history in a Couchbase collection.',
 		defaults: {
 			name: 'Couchbase Chat Memory',
@@ -46,6 +48,7 @@ export class MemoryCouchbaseChat implements INodeType {
 			{
 				name: 'couchbaseApi',
 				required: true,
+				testedBy: 'couchbaseCredentialTest',
 			},
 		],
 		codex: {
@@ -79,6 +82,9 @@ export class MemoryCouchbaseChat implements INodeType {
 		],
 	};
 	methods = {
+		credentialTest: {
+			couchbaseCredentialTest,
+		},
 		listSearch: {
 			populateCouchbaseBucketRL,
 			populateCouchbaseScopeRL,
@@ -124,6 +130,7 @@ export class MemoryCouchbaseChat implements INodeType {
 			}
 
 			const couchbaseChatHistory = new CouchbaseChatMessageHistory({
+				node: this.getNode(),
 				collection,
 				sessionId,
 			});
@@ -142,7 +149,9 @@ export class MemoryCouchbaseChat implements INodeType {
 			};
 		} catch (error: any) {
 			if (error instanceof NodeOperationError) {
-				throw error;
+				throw new NodeOperationError(this.getNode(), error.message, {
+					description: error.description ?? undefined,
+				});
 			}
 			throw handleCouchbaseError(error, bucketName, scopeName, collectionName);
 		}

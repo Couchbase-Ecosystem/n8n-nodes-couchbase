@@ -65,20 +65,19 @@ export async function validateBucketScopeCollection(
 
 			// If we get here, all components exist and have the correct hierarchical relationship
 			return;
-		} catch (error) {
+		} catch (error: any) {
 			if (error instanceof BucketNotFoundError) {
 				throw new NodeOperationError(context.getNode(), `Bucket "${bucketName}" not found.`, {
 					description: 'Please ensure the bucket exists in your Couchbase cluster.',
 				});
 			}
-			// Re-throw other errors that might have occurred
-			throw error;
+			throw new NodeOperationError(context.getNode(), `Error: ${error.message}`, {
+				description: error.description ?? undefined,
+			});
 		}
-	} catch (error) {
-		// If it's not already a NodeOperationError, wrap it
-		if (!(error instanceof NodeOperationError)) {
-			throw new NodeOperationError(context.getNode(), `Error: ${error.message}`);
-		}
-		throw error;
+	} catch (error: any) {
+		throw new NodeOperationError(context.getNode(), `Error: ${error.message}`, {
+			description: error.description ?? undefined,
+		});
 	}
 }

@@ -54,7 +54,10 @@ export async function callMethodAsync<T>(
 			if (!error.description) {
 				error.description = error.message;
 			}
-			throw error;
+			throw new NodeOperationError(connectedNode, error.message, {
+				description: error.description,
+				functionality: 'configuration-node',
+			});
 		}
 
 		throw new NodeOperationError(

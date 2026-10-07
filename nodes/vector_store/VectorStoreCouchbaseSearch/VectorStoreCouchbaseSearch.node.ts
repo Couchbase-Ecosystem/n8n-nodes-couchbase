@@ -20,6 +20,7 @@ import {
 	populateCouchbaseSearchIndexesRL,
 } from '@utils/couchbase/populateCouchbaseRLs';
 import { connectToCouchbase } from '@utils/couchbase/connectToCouchbase';
+import { couchbaseCredentialTest } from '@utils/couchbase/couchbaseCredentialTest';
 import { validateBucketScopeCollection } from '@utils/couchbase/validateBucketScopeCollection';
 
 const couchbaseBucketRL: INodeProperties = {
@@ -295,11 +296,15 @@ export class VectorStoreCouchbaseSearch extends createVectorStoreNode<CouchbaseS
 			{
 				name: 'couchbaseApi',
 				required: true,
+				testedBy: 'couchbaseCredentialTest',
 			},
 		],
 		operationModes: ['load', 'insert', 'retrieve', 'update', 'retrieve-as-tool'],
 	},
 	methods: {
+		credentialTest: {
+			couchbaseCredentialTest,
+		},
 		listSearch: {
 			populateCouchbaseBucketRL,
 			populateCouchbaseScopeRL,
@@ -343,11 +348,8 @@ export class VectorStoreCouchbaseSearch extends createVectorStoreNode<CouchbaseS
 			};
 
 			return CouchbaseSearchVectorStore.initialize(embeddings, couchbaseConfig);
-		} catch (error) {
-			if (!(error instanceof NodeOperationError)) {
-				throw new NodeOperationError(context.getNode(), `Error: ${error.message}`);
-			}
-			throw error;
+		} catch (error: any) {
+			throw new NodeOperationError(context.getNode(), `Error: ${error.message}`);
 		}
 	},
 	async populateVectorStore(context, embeddings, documents, itemIndex) {
@@ -417,11 +419,8 @@ export class VectorStoreCouchbaseSearch extends createVectorStoreNode<CouchbaseS
 			const insertedIds = await vectorStore.addDocuments(documents, addVectorOptions);
 
 			return insertedIds;
-		} catch (error) {
-			if (!(error instanceof NodeOperationError)) {
-				throw new NodeOperationError(context.getNode(), `Error: ${error.message}`);
-			}
-			throw error;
+		} catch (error: any) {
+			throw new NodeOperationError(context.getNode(), `Error: ${error.message}`);
 		}
 	},
 }) {}

@@ -13,8 +13,7 @@ export const sessionIdOption: INodeProperties = {
 				"Looks for an input field called 'sessionId' that is coming from a directly connected Chat Trigger",
 		},
 		{
-			// eslint-disable-next-line n8n-nodes-base/node-param-display-name-miscased
-			name: 'Define below',
+			name: 'Define Below',
 			value: 'customKey',
 			description: 'Use an expression to reference data in previous nodes or enter static text',
 		},

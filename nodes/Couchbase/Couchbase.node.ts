@@ -6,6 +6,7 @@ import {
 	INodeType,
 	INodeTypeDescription,
 	IPairedItemData,
+	NodeConnectionTypes,
 	NodeOperationError,
 } from 'n8n-workflow';
 
@@ -35,6 +36,7 @@ import {
 } from '@utils/couchbase/populateCouchbaseRLs';
 import { connectToCouchbase } from '@utils/couchbase/connectToCouchbase';
 import { validateBucketScopeCollection } from '@utils/couchbase/validateBucketScopeCollection';
+import { couchbaseCredentialTest } from '@utils/couchbase/couchbaseCredentialTest';
 
 /**
  * Processes search results to remove empty objects and undefined values, then formats them into an array of IDataObject
@@ -127,21 +129,28 @@ export class Couchbase implements INodeType {
 		subtitle: '={{$parameter["resource"] + ": " + $parameter["operation"]}}',
 		description:
 			'Couchbase node to insert, update, retrieve, and delete data from a Couchbase database using KV, Query and Search services',
+		usableAsTool: true,
 		defaults: {
 			name: 'Couchbase',
 		},
-		inputs: ['main'],
-		outputs: ['main'],
+		// eslint-disable-next-line n8n-nodes-base/node-class-description-inputs-wrong-regular-node
+		inputs: [NodeConnectionTypes.Main],
+		// eslint-disable-next-line n8n-nodes-base/node-class-description-outputs-wrong
+		outputs: [NodeConnectionTypes.Main],
 		credentials: [
 			{
 				name: 'couchbaseApi',
 				required: true,
+				testedBy: 'couchbaseCredentialTest',
 			},
 		],
 		properties: couchbaseProperties,
 	};
 
 	methods = {
+		credentialTest: {
+			couchbaseCredentialTest,
+		},
 		listSearch: {
 			populateCouchbaseBucketRL,
 			populateCouchbaseScopeRL,

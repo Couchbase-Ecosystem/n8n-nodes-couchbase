@@ -9,6 +9,7 @@ import type {
 	INodeListSearchResult,
 	Icon,
 	ISupplyDataFunctions,
+	ICredentialTestFunctions,
 	ThemeIconColor,
 	IDataObject,
 	NodeParameterValueType,
@@ -33,6 +34,9 @@ export interface NodeMeta {
 export interface VectorStoreNodeConstructorArgs<T extends VectorStore = VectorStore> {
 	meta: NodeMeta;
 	methods?: {
+		credentialTest?: {
+			[functionName: string]: (this: ICredentialTestFunctions, credential: any) => Promise<any>;
+		};
 		listSearch?: {
 			[key: string]: (
 				this: ILoadOptionsFunctions,

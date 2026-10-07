@@ -22,7 +22,6 @@
   "packageManager": "pnpm@9.1.4",
   "main": "index.js",
   "scripts": {
-    "preinstall": "npx only-allow pnpm",
     "prepublishOnly": "pnpm build && pnpm lint:prepublish",
     "build": "tsc && tsc-alias && gulp build:icons",
     "dev": "tsc --watch",
@@ -71,7 +70,7 @@
     "typescript": "^5.5.3"
   },
   "peerDependencies": {
-    "n8n-workflow": ">=1.120.1 <3"
+    "n8n-workflow": "*"
   },
   "dependencies": {
     "@langchain/classic": "^1.0.27",

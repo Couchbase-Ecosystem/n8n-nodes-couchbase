@@ -8,6 +8,7 @@ yarn.lock
 .vscode/launch.json
 .idea/
 n8n-nodes-couchbase-*.tgz
+.hermes/
 
 # Local secrets for the E2E suite (OPENAI_API_KEY etc). Never commit these.
 .env

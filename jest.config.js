@@ -9,6 +9,10 @@ module.exports = {
 	testPathIgnorePatterns: ['/node_modules/', '<rootDir>/test/e2e/'],
 	moduleNameMapper: {
 		'^@utils/(.*)$': '<rootDir>/utils/$1',
+		// @langchain/community >=1.1.28 depends on uuid 14, which is ESM-only. Node loads it
+		// through require(esm), but Jest's CommonJS runtime cannot, so tests resolve every
+		// `uuid` import to this package's own CommonJS-compatible uuid 11.
+		'^uuid$': require.resolve('uuid'),
 	},
 	transform: {
 		'^.+\\.ts$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.test.json' }],
